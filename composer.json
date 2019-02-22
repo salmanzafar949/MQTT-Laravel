@@ -9,5 +9,12 @@
             "email": "salmanzafar949@gmail.com"
         }
     ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Salman\\Mqtt\\MqttServiceProvider"
+            ]
+        }
+    },
     "minimum-stability": "dev"
 }
