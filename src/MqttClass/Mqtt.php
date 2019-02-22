@@ -16,6 +16,7 @@ class Mqtt
     protected $cert_file = null;
     protected $password = null;
     protected $port = null;
+    protected $debug = null;
 
     public function __construct()
     {
@@ -24,6 +25,7 @@ class Mqtt
         $this->password  = config('mqtt.password');
         $this->cert_file = config('mqtt.certfile');
         $this->port      = config('mqtt.port');
+        $this->debug     = config('mqtt.debug');
 
 //         $this->client = new phpMQTT($this->host, $this->port, 25,$this-$this->cert_file);
 //        $this->client = new MQTTClient($this->host,$this->port);
@@ -32,7 +34,7 @@ class Mqtt
 
     public function ConnectAndSendMessage($topic, $msg)
     {
-        $client = new phpMQTT($this->host,$this->port, rand(0,100), $this->cert_file);
+        $client = new phpMQTT($this->host,$this->port, rand(0,100), $this->cert_file, $this->debug);
 
         if ($client->connect(true))
         {

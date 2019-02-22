@@ -48,7 +48,7 @@ class phpMQTT {
     private $password;			/* stores password */
     public $cafile;
 
-    function __construct($address, $port, $clientid, $cafile = NULL, $debug=false){
+    function __construct($address, $port, $clientid, $cafile = NULL, $debug){
         $this->debug = $debug;
         $this->broker($address, $port, $clientid, $cafile);
     }
