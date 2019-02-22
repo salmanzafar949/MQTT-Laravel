@@ -1,0 +1,13 @@
+{
+    "name": "salmanzafar/mqtt_laravel",
+    "description": "Mqtt client library for Laravel",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Salman Zafar",
+            "email": "salmanzafar949@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev"
+}
