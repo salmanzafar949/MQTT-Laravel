@@ -27,8 +27,7 @@ use Salman\Mqtt\MqttClass\Mqtt;
 public function SendMsgViaMqtt($topic, $message)
 {
         $mqtt = new Mqtt();
-        $final_topic = $serial.'/'.$topic;
-        $output = $mqtt->ConnectAndSendMessage($msg,$final_topic);
+        $output = $mqtt->ConnectAndSendMessage($topic, $message);
 
         if ($output === true)
         {
