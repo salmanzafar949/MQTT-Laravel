@@ -9,5 +9,17 @@
             "email": "salmanzafar949@gmail.com"
         }
     ],
-    "minimum-stability": "dev"
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Salman\\Mqtt\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Salman\\Mqtt\\MqttServiceProvider"
+            ]
+        }
+    }
 }
