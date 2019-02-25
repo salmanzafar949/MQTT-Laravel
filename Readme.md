@@ -4,12 +4,20 @@ A simple Package that can be used to connect to Mqtt using laravel
 
 It uses [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT) as a base.
 
+#### Installation
+```
+composer require salmanzafar/mqtt_laravel
+```
 ### Features
 
 * Name and Password Authentication
 * Certificate Protection for end to end encryption
 * Enable Debug mode to make it easier for debugging 
 
+## Configuration
+```
+php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider"
+```
 ## Config/mqtt.php
 ```
     'host' => env('mqtt_host','127.0.0.1'),
