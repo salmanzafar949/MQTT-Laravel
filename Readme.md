@@ -12,7 +12,7 @@ It uses [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT) as a base.
 
 ## Config.php
 ```
-'host' => env('mqtt_host','127.0.0.1'),
+    'host' => env('mqtt_host','127.0.0.1'),
     'password' => env('mqtt_password',''),
     'username' => env('mqtt_username',''),
     'certfile' => env('mqtt_cert_file',''),
