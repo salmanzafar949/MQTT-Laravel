@@ -27,8 +27,6 @@ class Mqtt
         $this->port      = config('mqtt.port');
         $this->debug     = config('mqtt.debug');
 
-//         $this->client = new phpMQTT($this->host, $this->port, 25,$this-$this->cert_file);
-//        $this->client = new MQTTClient($this->host,$this->port);
     }
 
 
@@ -46,24 +44,6 @@ class Mqtt
 
         return false;
 
-
-
-//        $this->client->setAuthentication($this->username,$this->password);
-//        $this->client->setEncryption($this->cert_file);
-//        $success = $this->client->sendConnect(rand(0,63));  // set your client ID
-//        if ($success) {
-//            $this->client->sendPublish($topic, $msg);
-//            $messages = $this->client->getPublishMessages();  // now read and acknowledge all messages waiting
-//            foreach ($messages as $message) {
-//                echo $message['topic'] .': '. $message['message'] . PHP_EOL;
-//            }
-//
-//            $this->client->sendDisconnect();
-//            echo 'success';
-//        }
-//
-//        $this->client->close();
-//        echo 'error';
     }
 
 }
