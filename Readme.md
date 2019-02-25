@@ -10,7 +10,7 @@ It uses [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT) as a base.
 * Certificate Protection for end to end encryption
 * Enable Debug mode to make it easier for debugging 
 
-## Config.php
+## Config/mqtt.php
 ```
     'host' => env('mqtt_host','127.0.0.1'),
     'password' => env('mqtt_password',''),
