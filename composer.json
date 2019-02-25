@@ -9,12 +9,5 @@
             "email": "salmanzafar949@gmail.com"
         }
     ],
-    "extra": {
-        "laravel": {
-            "dont-discover": [
-                "salmanzafar/mqtt_laravel"
-            ]
-        }
-    },
     "minimum-stability": "dev"
 }
