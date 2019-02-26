@@ -2,7 +2,7 @@
 
 A simple Package that can be used to connect to Mqtt using laravel
 
-It uses [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT) as a base.
+Based on [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT)
 
 ## Installation
 ```
