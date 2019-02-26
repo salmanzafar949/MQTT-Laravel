@@ -35,7 +35,7 @@ use Salman\Mqtt\MqttClass\Mqtt;
 public function SendMsgViaMqtt($topic, $message)
 {
         $mqtt = new Mqtt();
-        $output = $mqtt->ConnectAndSendMessage($topic, $message);
+        $output = $mqtt->ConnectAndPublish($topic, $message);
 
         if ($output === true)
         {
