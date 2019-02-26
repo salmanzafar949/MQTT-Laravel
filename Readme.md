@@ -4,11 +4,11 @@ A simple Package that can be used to connect to Mqtt using laravel
 
 It uses [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT) as a base.
 
-#### Installation
+## Installation
 ```
 composer require salmanzafar/mqtt_laravel
 ```
-### Features
+## Features
 
 * Name and Password Authentication
 * Certificate Protection for end to end encryption
