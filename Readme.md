@@ -20,12 +20,12 @@ php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider"
 ```
 ## Config/mqtt.php
 ```
-    'host' => env('mqtt_host','127.0.0.1'),
+    'host'     => env('mqtt_host','127.0.0.1'),
     'password' => env('mqtt_password',''),
     'username' => env('mqtt_username',''),
     'certfile' => env('mqtt_cert_file',''),
-    'port' => env('mqtt_port','1883'),
-    'debug' => env('mqtt_debug',false) //Optional Parameter to enable debugging set it to True
+    'port'     => env('mqtt_port','1883'),
+    'debug'    => env('mqtt_debug',false) //Optional Parameter to enable debugging set it to True
 ```
 #### Publishing topic
 
