@@ -19,7 +19,10 @@
         "laravel": {
             "providers": [
                 "Salman\\Mqtt\\MqttServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Mqtt": "Salman\\Mqtt\\Facades\\Mqtt"
+            }
         }
     }
 }

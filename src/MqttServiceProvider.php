@@ -9,6 +9,7 @@
 namespace Salman\Mqtt;
 
 use Illuminate\Support\ServiceProvider;
+use Salman\Mqtt\MqttClass\Mqtt;
 
 class MqttServiceProvider extends ServiceProvider
 {
@@ -23,6 +24,17 @@ class MqttServiceProvider extends ServiceProvider
 
     public function register()
     {
+        $this->app->singleton('Mqtt',function (){
 
+            return new Mqtt();
+        });
+    }
+
+    /**
+     * @return array
+     */
+    public function provides()
+    {
+        return array('Mqtt');
     }
 }
