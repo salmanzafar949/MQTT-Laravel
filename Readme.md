@@ -45,7 +45,23 @@ public function SendMsgViaMqtt($topic, $message)
         return false;
 }
 ```
+#### Publishing topic using Facade
 
+```
+use Mqtt;
+
+public function SendMsgViaMqtt($topic, $message)
+{
+        $output = Mqtt::ConnectAndPublish($topic, $message);
+
+        if ($output === true)
+        {
+            return true;
+        }
+
+        return false;
+}
+```
 ### Tested on php 7.3 and laravel 5.7 
 
 # Full documentation Coming Soon
