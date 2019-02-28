@@ -64,4 +64,6 @@ public function SendMsgViaMqtt($topic, $message)
 ```
 ### Tested on php 7.3 and laravel 5.7 
 
+### Subscribing part under development
+
 # Full documentation Coming Soon
