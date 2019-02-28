@@ -6,7 +6,8 @@ Based on [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT)
 
 ## Installation
 ```
-composer require salmanzafar/laravel-mqtt```
+composer require salmanzafar/laravel-mqtt
+```
 ## Features
 
 * Name and Password Authentication
