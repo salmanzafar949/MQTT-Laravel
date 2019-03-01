@@ -14,7 +14,28 @@ composer require salmanzafar/laravel-mqtt
 * Certificate Protection for end to end encryption
 * Enable Debug mode to make it easier for debugging 
 
+## Enable the package (Optional)
+This package implements Laravel auto-discovery feature. After you install it the package provider and facade are added automatically for laravel >= 5.5.
+
+__This step is only required if you are using laravel version <5.5__
+
+To declare the provider and/or alias explicitly, then add the service provider to your config/app.php:
+
+```
+'providers' => [
+
+        Salman\Mqtt\MqttServiceProvider::class,
+];
+```
+And then add the alias to your config/app.php:
+```
+'aliases' => [
+
+       'Mqtt' => \Salman\Mqtt\Facades\Mqtt::class,
+];
+```
 ## Configuration
+Publish the configuration file
 ```
 php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider"
 ```
