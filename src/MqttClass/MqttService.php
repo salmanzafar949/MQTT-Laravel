@@ -7,12 +7,14 @@
  */
 
 namespace Salman\Mqtt\MqttClass;
+
 /*
 	A simple php class to connect/publish to an MQTT broker
 */
 
 /* phpMQTT */
-class phpMQTT {
+class MqttService
+{
     private $socket; 			/* holds the socket	*/
     private $msgid = 1;			/* counter for message id */
     public $keepalive = 10;		/* default keepalive timmer */

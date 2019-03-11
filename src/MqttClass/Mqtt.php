@@ -32,7 +32,7 @@ class Mqtt
 
     public function ConnectAndPublish($topic, $msg)
     {
-        $client = new phpMQTT($this->host,$this->port, rand(0,100), $this->cert_file, $this->debug);
+        $client = new MqttService($this->host,$this->port, rand(0,100), $this->cert_file, $this->debug);
 
         if ($client->connect(true))
         {
