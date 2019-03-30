@@ -57,7 +57,7 @@ class Mqtt
     {
         $client = new MqttService($this->host,$this->port, rand(0,100), $this->cert_file, $this->debug);
 
-        if ($client->connect(true))
+        if ($client->connect(true, null, $this->username, $this->password))
         {
             $client->publish($topic,$msg);
             $client->close();
