@@ -85,6 +85,6 @@ public function SendMsgViaMqtt($topic, $message)
 ```
 ### Tested on php 7.3 and laravel 5.7 and also laravel 5.8
 
-#### By me a [coffee](https://www.patreon.com/user?u=19979922)
+#### be my [Patreon](https://www.patreon.com/user?u=19979922)
 
 ## Subscription Part is in development
