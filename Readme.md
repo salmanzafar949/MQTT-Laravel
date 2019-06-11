@@ -91,7 +91,8 @@ use Salman\Mqtt\MqttClass\Mqtt;
 
 public function SubscribetoTopic($topic)
     {
-       Mqtt::ConnectAndSubscribe($topic, function($topic, $msg){
+        $mqtt = new Mqtt();
+        $mqtt->ConnectAndSubscribe($topic, function($topic, $msg){
             echo "Msg Received: \n";
             echo "Topic: {$topic}\n\n";
             echo "\t$msg\n\n";
@@ -107,8 +108,7 @@ use Mqtt;
 
 public function SubscribetoTopic($topic)
     {
-        $mqtt = new Mqtt();
-        $mqtt->ConnectAndSubscribe($topic, function($topic, $msg){
+       Mqtt::ConnectAndSubscribe($topic, function($topic, $msg){
             echo "Msg Received: \n";
             echo "Topic: {$topic}\n\n";
             echo "\t$msg\n\n";
