@@ -69,5 +69,25 @@ class Mqtt
 
     }
 
+    public function ConnectAndSubscribe($topic, $proc)
+    {
+        $client = new MqttService($this->host,$this->port, rand(0,100), $this->cert_file, $this->debug);
+
+        if ($client->connect(true, null, $this->username, $this->password))
+        {
+            $topics[$topic] = array("qos" => 0, "function" => $proc);
+
+            $client->subscribe($topics, 0);
+
+            while($client->proc())
+            {
+
+            }
+
+            $client->close();
+        }
+
+        return false;
+    }
 
 }
