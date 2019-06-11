@@ -83,6 +83,39 @@ public function SendMsgViaMqtt($topic, $message)
         return false;
 }
 ```
-### Tested on php 7.3 and laravel 5.7 and also laravel 5.8
 
-## Subscription Part is in development
+#### Subscribing topic
+
+```
+use Salman\Mqtt\MqttClass\Mqtt;
+
+public function SubscribetoTopic($topic)
+    {
+       Mqtt::ConnectAndSubscribe($topic, function($topic, $msg){
+            echo "Msg Received: \n";
+            echo "Topic: {$topic}\n\n";
+            echo "\t$msg\n\n";
+        });
+
+
+    }
+```
+#### Subscribing topic using Facade
+
+```
+use Mqtt;
+
+public function SubscribetoTopic($topic)
+    {
+        $mqtt = new Mqtt();
+        $mqtt->ConnectAndSubscribe($topic, function($topic, $msg){
+            echo "Msg Received: \n";
+            echo "Topic: {$topic}\n\n";
+            echo "\t$msg\n\n";
+        });
+
+
+    }
+```
+
+### Tested on php 7.3 and laravel 5.7 and also laravel 5.8
