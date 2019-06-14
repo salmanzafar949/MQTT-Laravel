@@ -1,6 +1,6 @@
 {
     "name": "salmanzafar/laravel-mqtt",
-    "description": "A simple Laravel 5 Library to connect/publish to MQTT broker",
+    "description": "A simple Laravel 5 Library to connect/publish/subscribe to MQTT broker",
     "type": "library",
     "license": "MIT",
     "authors": [
