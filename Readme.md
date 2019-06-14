@@ -4,6 +4,8 @@ A simple Laravel 5 Library to connect/publish/subscribe to MQTT broker
 
 Based on [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT)
 
+For Example see this [repo](https://github.com/salmanzafar949/Laravel-Mqtt-Example)
+
 ## Installation
 ```
 composer require salmanzafar/laravel-mqtt
