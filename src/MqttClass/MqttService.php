@@ -13,6 +13,7 @@ namespace Salman\Mqtt\MqttClass;
 */
 
 /* phpMQTT */
+
 class MqttService
 {
     private $socket; 			/* holds the socket	*/
@@ -33,6 +34,7 @@ class MqttService
         $this->debug = $debug;
         $this->broker($address, $port, $clientid, $cafile);
     }
+
     /* sets the broker details */
     function broker($address, $port, $clientid, $cafile = NULL){
         $this->address = $address;
@@ -40,12 +42,14 @@ class MqttService
         $this->clientid = $clientid;
         $this->cafile = $cafile;
     }
+
     function connect_auto($clean = true, $will = NULL, $username = NULL, $password = NULL){
         while($this->connect($clean, $will, $username, $password)==false){
             sleep(10);
         }
         return true;
     }
+
     /* connects to the broker
         inputs: $clean: should the client send a clean session flag */
     function connect($clean = true, $will = NULL, $username = NULL, $password = NULL){
@@ -118,6 +122,7 @@ class MqttService
         $this->timesinceping = time();
         return true;
     }
+
     /* read: reads in so many bytes */
     function read($int = 8192, $nb = false){
         //	print_r(socket_get_status($this->socket));
@@ -140,6 +145,7 @@ class MqttService
 
         return $string;
     }
+
     /* subscribe: subscribes to topics */
     function subscribe($topics, $qos = 0){
         $i = 0;
@@ -165,6 +171,7 @@ class MqttService
         $bytes = ord(substr($string,1,1));
         $string = $this->read($bytes);
     }
+
     /* ping: sends a keep alive ping */
     function ping(){
         $head = " ";
@@ -173,6 +180,7 @@ class MqttService
         fwrite($this->socket, $head, 2);
         if($this->debug) echo "ping sent\n";
     }
+
     /* disconnect: sends a proper disconect cmd */
     function disconnect(){
         $head = " ";
@@ -180,11 +188,13 @@ class MqttService
         $head{1} = chr(0x00);
         fwrite($this->socket, $head, 2);
     }
+
     /* close: sends a proper disconect, then closes the socket */
     function close(){
         $this->disconnect();
         stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
     }
+
     /* publish: publishes $content on a $topic */
     function publish($topic, $content, $qos = 0, $retain = 0){
         $i = 0;
@@ -207,6 +217,7 @@ class MqttService
         fwrite($this->socket, $head, strlen($head));
         fwrite($this->socket, $buffer, $i);
     }
+
     /* message: processes a recieved topic */
     function message($msg){
         $tlen = (ord($msg{0})<<8) + ord($msg{1});
@@ -227,6 +238,7 @@ class MqttService
         }
         if($this->debug && !$found) echo "msg recieved but no match in subscriptions\n";
     }
+
     /* proc: the processing loop for an "allways on" client
         set true when you are doing other stuff in the loop good for watching something else at the same time */
     function proc( $loop = true){
@@ -291,6 +303,7 @@ class MqttService
         }
         return 1;
     }
+
     /* getmsglength: */
     function getmsglength(&$msg, &$i){
         $multiplier = 1;
@@ -303,6 +316,7 @@ class MqttService
         }while (($digit & 128) != 0);
         return $value;
     }
+
     /* setmsglength: */
     function setmsglength($len){
         $string = "";
@@ -316,6 +330,7 @@ class MqttService
         }while ( $len > 0 );
         return $string;
     }
+
     /* strwritestring: writes a string to a buffer */
     function strwritestring($str, &$i){
         $ret = " ";
@@ -328,6 +343,7 @@ class MqttService
         $i += ($len+2);
         return $ret;
     }
+
     function printstr($string){
         $strlen = strlen($string);
         for($j=0;$j<$strlen;$j++){
