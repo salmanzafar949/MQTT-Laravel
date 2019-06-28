@@ -9,7 +9,7 @@
 namespace Salman\Mqtt\MqttClass;
 
 /*
-	A simple php class to connect/publish to an MQTT broker
+	A simple php class to connect/publish/Subscribe to an MQTT broker
 */
 
 /* phpMQTT */
@@ -18,13 +18,13 @@ class MqttService
 {
     private $socket; 			/* holds the socket	*/
     private $msgid = 1;			/* counter for message id */
-    public $keepalive = 10;		/* default keepalive timmer */
-    public $timesinceping;		/* host unix time, used to detect disconects */
+    public $keepalive = 10;		/* default keepalive timer */
+    public $timesinceping;		/* host unix time, used to detect disconnects */
     public $topics = array(); 	/* used to store currently subscribed topics */
     public $debug = false;		/* should output debug messages */
     public $address;			/* broker address */
     public $port;				/* broker port */
-    public $clientid;			/* client id sent to brocker */
+    public $clientid;			/* client id sent to broker */
     public $will;				/* stores the will of the client */
     private $username;			/* stores username */
     private $password;			/* stores password */
@@ -181,7 +181,7 @@ class MqttService
         if($this->debug) echo "ping sent\n";
     }
 
-    /* disconnect: sends a proper disconect cmd */
+    /* disconnect: sends a proper disconnect cmd */
     function disconnect(){
         $head = " ";
         $head{0} = chr(0xe0);
@@ -218,7 +218,7 @@ class MqttService
         fwrite($this->socket, $buffer, $i);
     }
 
-    /* message: processes a recieved topic */
+    /* message: processes a received topic */
     function message($msg){
         $tlen = (ord($msg{0})<<8) + ord($msg{1});
         $topic = substr($msg,2,$tlen);
@@ -239,7 +239,7 @@ class MqttService
         if($this->debug && !$found) echo "msg recieved but no match in subscriptions\n";
     }
 
-    /* proc: the processing loop for an "allways on" client
+    /* proc: the processing loop for an "always on" client
         set true when you are doing other stuff in the loop good for watching something else at the same time */
     function proc( $loop = true){
         if(1){
