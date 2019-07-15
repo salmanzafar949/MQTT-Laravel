@@ -15,8 +15,10 @@ composer require salmanzafar/laravel-mqtt
 * Name and Password Authentication
 * Certificate Protection for end to end encryption
 * Enable Debug mode to make it easier for debugging 
+* Now you can also set Client_id of your choice and if you don't want just simply don't use or set it to null
 
 ## Enable the package (Optional)
+
 This package implements Laravel auto-discovery feature. After you install it the package provider and facade are added automatically for laravel >= 5.5.
 
 __This step is only required if you are using laravel version <5.5__
@@ -58,7 +60,8 @@ use Salman\Mqtt\MqttClass\Mqtt;
 public function SendMsgViaMqtt($topic, $message)
 {
         $mqtt = new Mqtt();
-        $output = $mqtt->ConnectAndPublish($topic, $message);
+        $client_id = Auth::user()->id;
+        $output = $mqtt->ConnectAndPublish($topic, $message, $client_id);
 
         if ($output === true)
         {
@@ -75,7 +78,9 @@ use Mqtt;
 
 public function SendMsgViaMqtt($topic, $message)
 {
-        $output = Mqtt::ConnectAndPublish($topic, $message);
+        $client_id = Auth::user()->id;
+        
+        $output = Mqtt::ConnectAndPublish($topic, $message, $client_id);
 
         if ($output === true)
         {
@@ -94,11 +99,12 @@ use Salman\Mqtt\MqttClass\Mqtt;
 public function SubscribetoTopic($topic)
     {
         $mqtt = new Mqtt();
+        $client_id = Auth::user()->id;
         $mqtt->ConnectAndSubscribe($topic, function($topic, $msg){
             echo "Msg Received: \n";
             echo "Topic: {$topic}\n\n";
             echo "\t$msg\n\n";
-        });
+        }, $client_id);
 
 
     }
@@ -114,7 +120,7 @@ public function SubscribetoTopic($topic)
             echo "Msg Received: \n";
             echo "Topic: {$topic}\n\n";
             echo "\t$msg\n\n";
-        });
+        },$client_id);
 
 
     }

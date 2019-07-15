@@ -53,9 +53,11 @@ class Mqtt
     }
 
 
-    public function ConnectAndPublish($topic, $msg)
+    public function ConnectAndPublish($topic, $msg, $client_id=null)
     {
-        $client = new MqttService($this->host,$this->port, rand(0,100), $this->cert_file, $this->debug);
+        $id = empty($client_id) ?  rand(0,999) : $client_id;
+
+        $client = new MqttService($this->host,$this->port, $id, $this->cert_file, $this->debug);
 
         if ($client->connect(true, null, $this->username, $this->password))
         {
@@ -69,9 +71,11 @@ class Mqtt
 
     }
 
-    public function ConnectAndSubscribe($topic, $proc)
+    public function ConnectAndSubscribe($topic, $proc, $client_id=null)
     {
-        $client = new MqttService($this->host,$this->port, rand(0,100), $this->cert_file, $this->debug);
+        $id = empty($client_id) ?  rand(0,999) : $client_id;
+
+        $client = new MqttService($this->host,$this->port,$id, $this->cert_file, $this->debug);
 
         if ($client->connect(true, null, $this->username, $this->password))
         {
