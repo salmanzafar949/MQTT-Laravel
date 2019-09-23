@@ -1,6 +1,6 @@
 # Laravel MQTT Package
 
-A simple Laravel 5 Library to connect/publish/subscribe to MQTT broker
+A simple Laravel 5 and 6 Library to connect/publish/subscribe to MQTT broker
 
 Based on [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT)
 
