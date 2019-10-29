@@ -16,6 +16,8 @@ composer require salmanzafar/laravel-mqtt
 * Certificate Protection for end to end encryption
 * Enable Debug mode to make it easier for debugging 
 * Now you can also set Client_id of your choice and if you don't want just simply don't use or set it to null
+* Set QOS flag directly from config file
+* Set Retain flag directly from config file
 
 ## Enable the package (Optional)
 
@@ -51,6 +53,8 @@ php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider"
     'certfile' => env('mqtt_cert_file',''),
     'port'     => env('mqtt_port','1883'),
     'debug'    => env('mqtt_debug',false) //Optional Parameter to enable debugging set it to True
+    'qos'      => env('mqtt_qos', 0), // set quality of service here
+    'retain'   => env('mqtt_retain', 0) // it should be 0 or 1 Whether the message should be retained.- Retain Flag
 ```
 #### Publishing topic
 
