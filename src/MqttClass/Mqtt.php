@@ -40,6 +40,8 @@ class Mqtt
     protected $password = null;
     protected $port = null;
     protected $debug = null;
+    protected $qos = 0;
+    protected $retain = 0;
 
     public function __construct()
     {
@@ -49,6 +51,8 @@ class Mqtt
         $this->cert_file = config('mqtt.certfile');
         $this->port      = config('mqtt.port');
         $this->debug     = config('mqtt.debug');
+        $this->qos       = config('mqtt.qos');
+        $this->retain    = config('mqtt.retain');
 
     }
 
@@ -61,7 +65,7 @@ class Mqtt
 
         if ($client->connect(true, null, $this->username, $this->password))
         {
-            $client->publish($topic,$msg);
+            $client->publish($topic,$msg, $this->qos, $this->retain);
             $client->close();
 
             return true;
@@ -81,7 +85,7 @@ class Mqtt
         {
             $topics[$topic] = array("qos" => 0, "function" => $proc);
 
-            $client->subscribe($topics, 0);
+            $client->subscribe($topics, $this->qos);
 
             while($client->proc())
             {
