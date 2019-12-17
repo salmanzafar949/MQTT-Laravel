@@ -131,3 +131,4 @@ public function SubscribetoTopic($topic)
 ```
 
 ### Tested on php 7.3 and laravel 5.7 and also laravel 5.8
+#### Also supports php 7.4
