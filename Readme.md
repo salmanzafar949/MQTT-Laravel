@@ -18,6 +18,7 @@ composer require salmanzafar/laravel-mqtt
 * Now you can also set Client_id of your choice and if you don't want just simply don't use or set it to null
 * Set QOS flag directly from config file
 * Set Retain flag directly from config file
+* Addition of Helper functions to make development more easy
 
 ## Enable the package (Optional)
 
@@ -69,10 +70,10 @@ public function SendMsgViaMqtt($topic, $message)
 
         if ($output === true)
         {
-            return true;
+            return "published";
         }
-
-        return false;
+        
+           return "Failed";
 }
 ```
 #### Publishing topic using Facade
@@ -88,10 +89,10 @@ public function SendMsgViaMqtt($topic, $message)
 
         if ($output === true)
         {
-            return true;
+            return "published";
         }
 
-        return false;
+        return "Failed";
 }
 ```
 
@@ -130,5 +131,32 @@ public function SubscribetoTopic($topic)
     }
 ```
 
-### Tested on php 7.3 and laravel 5.7 and also laravel 5.8
+#### Publishing topic using Helper method
+
+```
+
+public function SendMsgViaMqtt($topic, $message)
+{
+        $client_id = Auth::user()->id;
+        
+        $output = connectToPublish($topic, $message, $client_id);
+
+        if ($output === true)
+        {
+            return "published";
+        }
+
+        return "Failed";
+}
+```
+
+#### Subscribing topic using Helper method
+
+```
+public function SubscribetoTopic($topic)
+{
+   return connectToSubscribe($topic,$client_id);
+}
+```
+### Tested on php 7.3 and laravel 5.7 and also laravel 5.8 and also on laravel 6
 #### Also supports php 7.4

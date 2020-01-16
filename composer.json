@@ -38,7 +38,10 @@
     "autoload": {
         "psr-4": {
             "Salman\\Mqtt\\": "src/"
-        }
+        },
+        "files": [
+            "src/Helper/Helpers.php"
+        ]
     },
     "extra": {
         "laravel": {
