@@ -5,10 +5,11 @@ use Salman\Mqtt\MqttClass\Mqtt;
 
 if (!function_exists('connectToPublish'))
 {
-    function connectToPublish($topic, $message, $client_id=null)
+    function connectToPublish($topic, $message, $client_id=null, $retain=null)
     {
         $mqtt = new Mqtt();
-        return $mqtt->ConnectAndPublish($topic, $message, $client_id);
+
+        return $mqtt->ConnectAndPublish($topic, $message, $client_id, $retain);
     }
 }
 

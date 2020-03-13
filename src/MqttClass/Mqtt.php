@@ -57,15 +57,17 @@ class Mqtt
     }
 
 
-    public function ConnectAndPublish($topic, $msg, $client_id=null)
+    public function ConnectAndPublish($topic, $msg, $client_id=null, $retain=null)
     {
         $id = empty($client_id) ?  rand(0,999) : $client_id;
 
         $client = new MqttService($this->host,$this->port, $id, $this->cert_file, $this->debug);
 
+        $retain = empty($retain) ?  $this->retain : $retain;
+
         if ($client->connect(true, null, $this->username, $this->password))
         {
-            $client->publish($topic,$msg, $this->qos, $this->retain);
+            $client->publish($topic,$msg, $this->qos, $retain);
             $client->close();
 
             return true;
