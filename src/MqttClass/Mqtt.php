@@ -77,7 +77,7 @@ class Mqtt
 
     }
 
-    public function ConnectAndSubscribe($topic, $proc, $client_id=null)
+    public function ConnectAndSubscribe($topics, $proc, $client_id=null)
     {
         $id = empty($client_id) ?  rand(0,999) : $client_id;
 
@@ -85,7 +85,7 @@ class Mqtt
 
         if ($client->connect(true, null, $this->username, $this->password))
         {
-            $topics[$topic] = ["qos" => 0, "function" => $proc];
+            is_array($topics) ? $topics : $topics[$topics] = ["qos" => 0, "function" => $proc];
 
             $client->subscribe($topics, $this->qos);
 
