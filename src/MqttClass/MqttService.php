@@ -29,18 +29,22 @@ class MqttService
     private $username;			/* stores username */
     private $password;			/* stores password */
     public $cafile;
+    public $localcert;
+    public $localpk;
 
-    function __construct($address, $port, $clientid, $cafile = NULL, $debug){
+    function __construct($address, $port, $clientid, $cafile = NULL, $localcert = NULL, $localpk = NULL, $debug){
         $this->debug = $debug;
-        $this->broker($address, $port, $clientid, $cafile);
+        $this->broker($address, $port, $clientid, $cafile, $localcert, $localpk);
     }
 
     /* sets the broker details */
-    function broker($address, $port, $clientid, $cafile = NULL){
+    function broker($address, $port, $clientid, $cafile = NULL, $localcert = NULL, $localpk = NULL){
         $this->address = $address;
         $this->port = $port;
         $this->clientid = $clientid;
         $this->cafile = $cafile;
+        $this->localcert = $localcert;
+        $this->localpk = $localpk;
     }
 
     function connect_auto($clean = true, $will = NULL, $username = NULL, $password = NULL){
@@ -58,10 +62,16 @@ class MqttService
         if($username) $this->username = $username;
         if($password) $this->password = $password;
         if ($this->cafile) {
-            $socketContext = stream_context_create(["ssl" => [
+            $sslOptions = ["ssl" => [
                 "verify_peer_name" => true,
                 "cafile" => $this->cafile
-            ]]);
+            ]];
+            if( $this->localcert && $this->localpk )
+            {
+                $sslOptions["ssl"]["local_cert"] = $this->localcert;
+                $sslOptions["ssl"]["local_pk"] = $this->localpk;
+            }
+            $socketContext = stream_context_create($sslOptions);
             $this->socket = stream_socket_client("tls://" . $this->address . ":" . $this->port, $errno, $errstr, 60, STREAM_CLIENT_CONNECT, $socketContext);
         } else {
             $this->socket = stream_socket_client("tcp://" . $this->address . ":" . $this->port, $errno, $errstr, 60, STREAM_CLIENT_CONNECT);

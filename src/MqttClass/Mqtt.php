@@ -37,6 +37,8 @@ class Mqtt
     protected $host = null;
     protected $username = null;
     protected $cert_file = null;
+    protected $local_cert = null;
+    protected $local_pk = null;
     protected $password = null;
     protected $port = null;
     protected $debug = null;
@@ -45,15 +47,16 @@ class Mqtt
 
     public function __construct()
     {
-        $this->host      = config('mqtt.host');
-        $this->username  = config('mqtt.username');
-        $this->password  = config('mqtt.password');
-        $this->cert_file = config('mqtt.certfile');
-        $this->port      = config('mqtt.port');
-        $this->debug     = config('mqtt.debug');
-        $this->qos       = config('mqtt.qos');
-        $this->retain    = config('mqtt.retain');
-
+        $this->host         = config('mqtt.host');
+        $this->username     = config('mqtt.username');
+        $this->password     = config('mqtt.password');
+        $this->cert_file    = config('mqtt.certfile');
+        $this->local_cert   = config('mqtt.localcert');
+        $this->local_pk     = config('mqtt.localpk');
+        $this->port         = config('mqtt.port');
+        $this->debug        = config('mqtt.debug');
+        $this->qos          = config('mqtt.qos');
+        $this->retain       = config('mqtt.retain');
     }
 
 
@@ -61,7 +64,7 @@ class Mqtt
     {
         $id = empty($client_id) ?  rand(0,999) : $client_id;
 
-        $client = new MqttService($this->host,$this->port, $id, $this->cert_file, $this->debug);
+        $client = new MqttService($this->host,$this->port, $id, $this->cert_file, $this->local_cert, $this->local_pk, $this->debug);
 
         $retain = empty($retain) ?  $this->retain : $retain;
 

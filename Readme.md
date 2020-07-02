@@ -12,7 +12,8 @@ composer require salmanzafar/laravel-mqtt
 ```
 ## Features
 
-* Name and Password Authentication
+* Name and password authentication
+* Client certificate authentication
 * Certificate Protection for end to end encryption
 * Enable Debug mode to make it easier for debugging 
 * Now you can also set Client_id of your choice and if you don't want just simply don't use or set it to null
@@ -48,14 +49,16 @@ php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider"
 ```
 ## Config/mqtt.php
 ```
-    'host'     => env('mqtt_host','127.0.0.1'),
-    'password' => env('mqtt_password',''),
-    'username' => env('mqtt_username',''),
-    'certfile' => env('mqtt_cert_file',''),
-    'port'     => env('mqtt_port','1883'),
-    'debug'    => env('mqtt_debug',false) //Optional Parameter to enable debugging set it to True
-    'qos'      => env('mqtt_qos', 0), // set quality of service here
-    'retain'   => env('mqtt_retain', 0) // it should be 0 or 1 Whether the message should be retained.- Retain Flag
+    'host'      => env('mqtt_host','127.0.0.1'),
+    'password'  => env('mqtt_password',''),
+    'username'  => env('mqtt_username',''),
+    'certfile'  => env('mqtt_cert_file',''),
+    'localcert' => env('mqtt_local_cert', ''),
+    'localpk'   => env('mqtt_local_pk', ''),
+    'port'      => env('mqtt_port','1883'),
+    'debug'     => env('mqtt_debug',false) //Optional Parameter to enable debugging set it to True
+    'qos'       => env('mqtt_qos', 0), // set quality of service here
+    'retain'    => env('mqtt_retain', 0) // it should be 0 or 1 Whether the message should be retained.- Retain Flag
 ```
 #### Publishing topic
 
@@ -73,7 +76,7 @@ public function SendMsgViaMqtt($topic, $message)
             return "published";
         }
         
-           return "Failed";
+        return "Failed";
 }
 ```
 #### Publishing topic using Facade
