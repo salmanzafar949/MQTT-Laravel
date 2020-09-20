@@ -1,6 +1,6 @@
 # Laravel MQTT Package
 
-A simple Laravel 5 and 6 Library to connect/publish/subscribe to MQTT broker
+A simple Laravel Library to connect/publish/subscribe to MQTT broker
 
 Based on [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT)
 
@@ -121,6 +121,8 @@ use Mqtt;
 
 public function SubscribetoTopic($topic)
     {
+       //You can also subscribe to multiple topics using the same function $topic can be array of topics e.g ['topic1', 'topic2']
+
        Mqtt::ConnectAndSubscribe($topic, function($topic, $msg){
             echo "Msg Received: \n";
             echo "Topic: {$topic}\n\n";
@@ -153,10 +155,12 @@ public function SendMsgViaMqtt($topic, $message)
 #### Subscribing topic using Helper method
 
 ```
+//You can also subscribe to multiple topics using the same function $topic can be array of topics e.g ['topic1', 'topic2']
 public function SubscribetoTopic($topic)
 {
-   return connectToSubscribe($topic,$client_id);
+  return connectToSubscribe($topic,$client_id);
 }
 ```
-### Tested on php 7.3 and laravel 5.7 and also laravel 5.8 and also on laravel 6
-#### Also supports php 7.4
+
+### Tested on php 7.3 and laravel 5.7 and also laravel 5.8 and also on laravel 6, 7 and 8
+#### also, supports php 7.4

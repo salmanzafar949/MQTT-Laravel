@@ -1,6 +1,6 @@
 {
     "name": "salmanzafar/laravel-mqtt",
-    "description": "A simple Laravel 5 and 6 Library to connect/publish/subscribe to MQTT broker",
+    "description": "A simple Laravel Library to connect/publish/subscribe to MQTT broker",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -12,6 +12,13 @@
     "keywords": [
         "laravel",
         "laravel5",
+        "laravel6",
+        "laravel7",
+        "laravel8",
+        "laravel-5",
+        "laravel-6",
+        "laravel-7",
+        "laravel-8",
         "mqtt-laravel",
         "mqtt-laravel-publisher",
         "mqtt-laravel-subscriber",
@@ -31,7 +38,7 @@
         "php": ">=7.3"
     },
     "require-dev": {
-        "laravel/framework": ">=5.8"
+        "laravel/framework": ">=8.0"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,

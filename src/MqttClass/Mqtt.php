@@ -33,7 +33,6 @@ namespace Salman\Mqtt\MqttClass;
 
 class Mqtt
 {
-    protected $client;
     protected $host = null;
     protected $username = null;
     protected $cert_file = null;
@@ -77,7 +76,13 @@ class Mqtt
 
     }
 
-    public function ConnectAndSubscribe($topics, $proc, $client_id=null)
+    /**
+     * @param $topic
+     * @param $proc
+     * @param null $client_id
+     * @return boolean
+     */
+    public function ConnectAndSubscribe($topic, $proc, $client_id=null)
     {
         $id = empty($client_id) ?  rand(0,999) : $client_id;
 
@@ -85,9 +90,9 @@ class Mqtt
 
         if ($client->connect(true, null, $this->username, $this->password))
         {
-            is_array($topics) ? $topics : $topics[$topics] = ["qos" => 0, "function" => $proc];
+           $topicData =  is_array($topic) ? $topic : $topics[$topic] = ["qos" => 0, "function" => $proc];
 
-            $client->subscribe($topics, $this->qos);
+            $client->subscribe($topicData, $this->qos);
 
             while($client->proc())
             {
@@ -95,9 +100,10 @@ class Mqtt
             }
 
             $client->close();
+
+            return true;
         }
 
         return false;
     }
-
 }
