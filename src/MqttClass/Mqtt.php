@@ -61,6 +61,13 @@ class Mqtt
     }
 
 
+    /**
+     * @param $topic
+     * @param $msg
+     * @param null $client_id
+     * @param null $retain
+     * @return bool
+     */
     public function ConnectAndPublish($topic, $msg, $client_id=null, $retain=null)
     {
         $id = empty($client_id) ?  rand(0,999) : $client_id;
