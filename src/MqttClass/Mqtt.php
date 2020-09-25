@@ -72,7 +72,7 @@ class Mqtt
     {
         $id = empty($client_id) ?  rand(0,999) : $client_id;
 
-        $client = new MqttService($this->host,$this->port, $this->timeout, $id, $this->cert_file, $this->local_cert, $this->local_pk, $this->debug);
+        $client = new MqttService($this->host, $this->port, $this->timeout, $id, $this->cert_file, $this->local_cert, $this->local_pk, $this->debug);
 
         $retain = empty($retain) ?  $this->retain : $retain;
 
@@ -98,7 +98,7 @@ class Mqtt
     {
         $id = empty($client_id) ?  rand(0,999) : $client_id;
 
-        $client = new MqttService($this->host,$this->port, $id, $this->cert_file, $this->local_cert, $this->local_pk, $this->debug);
+        $client = new MqttService($this->host, $this->port, $this->timeout, $id, $this->cert_file, $this->local_cert, $this->local_pk, $this->debug);
 
         if ($client->connect(true, null, $this->username, $this->password))
         {
