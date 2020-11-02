@@ -166,9 +166,13 @@ class MqttService
         $buffer .= chr($id >> 8);  $i++;
         $buffer .= chr($id % 256);  $i++;
         foreach($topics as $key => $topic){
-            $buffer .= $this->strwritestring($key,$i);
-            $buffer .= chr($topic["qos"]);  $i++;
-            $this->topics[$key] = $topic;
+            if (!empty($topic))
+            {
+                $buffer .= $this->strwritestring($key,$i);
+                $buffer .= chr($topic["qos"]);
+                $i++;
+                $this->topics[$key] = $topic;
+            }
         }
         $cmd = 0x80;
         //$qos
