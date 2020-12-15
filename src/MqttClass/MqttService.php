@@ -33,7 +33,7 @@ class MqttService
     public $localcert;
     public $localpk;
 
-    function __construct($address, $port, $timeout, $clientid, $cafile = NULL, $localcert = NULL, $localpk = NULL, $debug){
+    function __construct($address, $port, $timeout, $clientid, $debug, $cafile = NULL, $localcert = NULL, $localpk = NULL){
         $this->debug = $debug;
         $this->broker($address, $port, $timeout, $clientid, $cafile, $localcert, $localpk);
     }
