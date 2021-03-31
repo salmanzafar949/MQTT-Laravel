@@ -169,7 +169,8 @@ class MqttService
             if (!empty($topic))
             {
                 $buffer .= $this->strwritestring($key,$i);
-                $buffer .= chr($topic["qos"]);
+                $callback = func_get_args()[0];
+                $buffer .= chr($callback["qos"]);
                 $i++;
                 $this->topics[$key] = $topic;
             }
