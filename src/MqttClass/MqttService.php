@@ -172,6 +172,9 @@ class MqttService
                 $callback = func_get_args()[0];
                 $buffer .= chr($callback["qos"]);
                 $i++;
+		if (($parts = explode('/', $key))[0] == '$share') {
+                    $key = implode('/',array_slice($parts, 2, count($parts) - 2));
+            	}
                 $this->topics[$key] = $topic;
             }
         }
@@ -242,9 +245,6 @@ class MqttService
         $msg = substr($msg,($tlen+2));
         $found = 0;
         foreach($this->topics as $key=>$top){
-	    if (($parts = explode('/', $key))[0] == '$share') {
-                $key = implode('/',array_slice($parts, 2, count($parts) - 2));
-            }
             if( preg_match("/^".str_replace("#",".*",
                     str_replace("+","[^\/]*",
                         str_replace("/","\/",
