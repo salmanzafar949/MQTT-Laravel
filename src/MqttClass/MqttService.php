@@ -169,12 +169,11 @@ class MqttService
             if (!empty($topic))
             {
                 $buffer .= $this->strwritestring($key,$i);
-                $callback = func_get_args()[0];
-                $buffer .= chr($callback["qos"]);
+                $buffer .= chr($topic["qos"]);
                 $i++;
-		if (($parts = explode('/', $key))[0] == '$share') {
+                if (($parts = explode('/', $key))[0] == '$share') {
                     $key = implode('/',array_slice($parts, 2, count($parts) - 2));
-            	}
+                }
                 $this->topics[$key] = $topic;
             }
         }
