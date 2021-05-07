@@ -102,9 +102,12 @@ class Mqtt
 
         if ($client->connect(true, null, $this->username, $this->password))
         {
-           $topicData =  is_array($topic)
-               ? $topics[$topic] = ["qos" => 0, "function" => $proc]
-               : $topic;
+            $topicData = ['qos' => $this->qos];
+            $topics = is_array($topic) ? $topic : [$topic];
+
+            foreach ($topics as $topicName) {
+                $topicData[$topicName] = ["qos" => 0, "function" => $proc];
+            }
 
             $client->subscribe($topicData, $this->qos);
 
