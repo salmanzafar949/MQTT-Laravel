@@ -188,4 +188,18 @@ or run PHPUnit directly:
 vendor/bin/phpunit
 ```
 
+## Releasing
+
+Releases are published to [Packagist](https://packagist.org/packages/salmanzafar/laravel-mqtt)
+automatically from git tags (Packagist is connected to this repository via the
+Packagist GitHub App). To cut a new release, push a [semver](https://semver.org) tag:
+
+```
+git tag v3.0.0
+git push origin v3.0.0
+```
+
+The `release` workflow runs the test suite for the tag and creates a GitHub
+Release; Packagist then picks the new version up on its own.
+
 ## Happy Coding...!
