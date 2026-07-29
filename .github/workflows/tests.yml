@@ -13,31 +13,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
-        laravel: ['8.*', '9.*', '10.*', '11.*', '12.*']
-        exclude:
-          # Laravel 9 requires PHP >= 8.0
-          - php: '7.4'
-            laravel: '9.*'
-          # Laravel 10 requires PHP >= 8.1
-          - php: '7.4'
-            laravel: '10.*'
+        include:
+          # orchestra/testbench pulls in the matching (patched) Laravel release:
+          #   testbench 7 -> Laravel 9, 8 -> 10, 9 -> 11, 10 -> 12
           - php: '8.0'
-            laravel: '10.*'
-          # Laravel 11 requires PHP >= 8.2
-          - php: '7.4'
-            laravel: '11.*'
-          - php: '8.0'
-            laravel: '11.*'
+            testbench: '^7.0'
+            laravel: '9.x'
           - php: '8.1'
-            laravel: '11.*'
-          # Laravel 12 requires PHP >= 8.2
-          - php: '7.4'
-            laravel: '12.*'
-          - php: '8.0'
-            laravel: '12.*'
-          - php: '8.1'
-            laravel: '12.*'
+            testbench: '^8.0'
+            laravel: '10.x'
+          - php: '8.2'
+            testbench: '^9.0'
+            laravel: '11.x'
+          - php: '8.3'
+            testbench: '^10.0'
+            laravel: '12.x'
+          - php: '8.4'
+            testbench: '^10.0'
+            laravel: '12.x'
 
     name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }}
 
@@ -54,7 +47,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require "orchestra/testbench:${{ matrix.testbench }}" --dev --no-interaction --no-update
           composer update --prefer-dist --no-interaction --no-progress
 
       - name: Run test suite

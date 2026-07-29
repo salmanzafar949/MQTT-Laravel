@@ -23,7 +23,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    name: Validate tag (PHP 8.2 / Laravel 11)
+    name: Validate tag (PHP 8.3 / Laravel 12)
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: openssl, mbstring
           coverage: none
 
