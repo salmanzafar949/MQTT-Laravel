@@ -15,10 +15,18 @@
         "laravel6",
         "laravel7",
         "laravel8",
+        "laravel9",
+        "laravel10",
+        "laravel11",
+        "laravel12",
         "laravel-5",
         "laravel-6",
         "laravel-7",
         "laravel-8",
+        "laravel-9",
+        "laravel-10",
+        "laravel-11",
+        "laravel-12",
         "mqtt-laravel",
         "mqtt-laravel-publisher",
         "mqtt-laravel-subscriber",
@@ -27,19 +35,20 @@
         "laravel mqtt",
         "mqtt laravel",
         "php",
-        "php 5.4",
-        "php 7.0",
-        "php 7.1",
-        "php 7.2",
-        "php 7.3",
         "php 7.4",
-        "php 8"
+        "php 8",
+        "php 8.1",
+        "php 8.2",
+        "php 8.3",
+        "php 8.4"
     ],
     "require": {
-        "php": "^7.0 || ^7.1 || ^7.2 || ^7.3 || ^7.4 || ^8.0"
+        "php": "^7.2 || ^8.0"
     },
     "require-dev": {
-        "laravel/framework": "^5.5 || ^6.0 || ^7.0 || ^8.0"
+        "laravel/framework": "^5.5 || ^6.0 || ^7.0 || ^8.0 || ^9.0 || ^10.0 || ^11.0 || ^12.0",
+        "orchestra/testbench": "^3.5 || ^4.0 || ^5.0 || ^6.0 || ^7.0 || ^8.0 || ^9.0 || ^10.0",
+        "phpunit/phpunit": "^7.0 || ^8.0 || ^9.0 || ^10.0 || ^11.0"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
@@ -51,6 +60,11 @@
             "src/Helper/Helpers.php"
         ]
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Salman\\Mqtt\\Tests\\": "tests/"
+        }
+    },
     "extra": {
         "laravel": {
             "providers": [
@@ -60,5 +74,11 @@
                 "Mqtt": "Salman\\Mqtt\\Facades\\Mqtt"
             }
         }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit"
     }
 }

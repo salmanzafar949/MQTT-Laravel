@@ -6,6 +6,15 @@ Based on [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT)
 
 For Example see this [repo](https://github.com/salmanzafar949/Laravel-Mqtt-Example)
 
+## Compatibility
+
+| PHP           | Laravel                    |
+|---------------|----------------------------|
+| 7.2 – 8.4     | 5.5 – 12.x                 |
+
+The package uses Laravel's package auto-discovery, so it works out of the box
+across all of the above versions.
+
 ## Installation
 ```
 composer require salmanzafar/laravel-mqtt
@@ -49,16 +58,17 @@ php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider"
 ```
 ## Config/mqtt.php
 ```
-    'host'      => env('mqtt_host','127.0.0.1'),
-    'password'  => env('mqtt_password',''),
-    'username'  => env('mqtt_username',''),
-    'certfile'  => env('mqtt_cert_file',''),
-    'localcert' => env('mqtt_local_cert', ''),
-    'localpk'   => env('mqtt_local_pk', ''),
-    'port'      => env('mqtt_port','1883'),
-    'debug'     => env('mqtt_debug',false) //Optional Parameter to enable debugging set it to True
-    'qos'       => env('mqtt_qos', 0), // set quality of service here
-    'retain'    => env('mqtt_retain', 0) // it should be 0 or 1 Whether the message should be retained.- Retain Flag
+    'host'      => env('MQTT_HOST', '127.0.0.1'),
+    'password'  => env('MQTT_PASSWORD', ''),
+    'username'  => env('MQTT_USERNAME', ''),
+    'certfile'  => env('MQTT_CERT_FILE', ''),
+    'localcert' => env('MQTT_LOCAL_CERT', ''),
+    'localpk'   => env('MQTT_LOCAL_PK', ''),
+    'port'      => env('MQTT_PORT', '1883'),
+    'timeout'   => (int) env('MQTT_TIMEOUT', 10),
+    'debug'     => (bool) env('MQTT_DEBUG', false), // Optional Parameter to enable debugging set it to True
+    'qos'       => env('MQTT_QOS', 0), // set quality of service here
+    'retain'    => env('MQTT_RETAIN', 0) // it should be 0 or 1 Whether the message should be retained.- Retain Flag
 ```
 #### Publishing topic
 
@@ -163,6 +173,19 @@ public function SubscribetoTopic($topic)
 {
   return connectToSubscribe($topic,$client_id);
 }
+```
+
+## Testing
+
+```
+composer install
+composer test
+```
+
+or run PHPUnit directly:
+
+```
+vendor/bin/phpunit
 ```
 
 ## Happy Coding...!
