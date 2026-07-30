@@ -5,7 +5,7 @@ All notable changes to `salmanzafar/laravel-mqtt` will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.1.0] - 2026-07-30
 
 ### Added
 - Configurable TLS options (`verify_peer`, `verify_peer_name`, `allow_self_signed`,
@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Socket writes now check their return value and fail cleanly on a broken pipe
   instead of silently continuing.
+- Releases are now tagged automatically from the `version` field in
+  `composer.json` when a change is merged into `master`.
 
 ## Earlier releases
 
