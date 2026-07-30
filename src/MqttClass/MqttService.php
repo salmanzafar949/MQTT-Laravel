@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Created by PhpStorm.
  * User: salman
@@ -8,8 +9,11 @@
 
 namespace Salman\Mqtt\MqttClass;
 
+use Psr\Log\LoggerInterface;
+use Salman\Mqtt\Exceptions\MqttConnectionException;
+
 /*
-	A simple php class to connect/publish/Subscribe to an MQTT broker
+    A simple php class to connect/publish/Subscribe to an MQTT broker
 */
 
 /* phpMQTT */
@@ -33,13 +37,24 @@ class MqttService
     public $localcert;
     public $localpk;
 
-    function __construct($address, $port, $timeout = 0, $clientId = null, $cafile = NULL, $localCert = NULL, $localPk = NULL, $debug=false){
+    /** @var array<string, mixed> extra SSL stream-context options */
+    protected $tlsOptions = [];
+
+    /** @var LoggerInterface|null optional PSR-3 logger */
+    protected $logger = null;
+
+    /** @var bool throw exceptions on failure instead of returning false */
+    protected $throwExceptions = false;
+
+    public function __construct($address, $port, $timeout = 0, $clientId = null, $cafile = null, $localCert = null, $localPk = null, $debug = false)
+    {
         $this->debug = $debug;
         $this->broker($address, $port, $timeout, $clientId, $cafile, $localCert, $localPk);
     }
 
     /* sets the broker details */
-    function broker($address, $port, $timeout = 0, $clientid = null, $cafile = NULL, $localcert = NULL, $localpk = NULL){
+    public function broker($address, $port, $timeout = 0, $clientid = null, $cafile = null, $localcert = null, $localpk = null)
+    {
         $this->address = $address;
         $this->port = $port;
         $this->timeout = $timeout;
@@ -49,8 +64,114 @@ class MqttService
         $this->localpk = $localpk;
     }
 
-    function connect_auto($clean = true, $will = NULL, $username = NULL, $password = NULL){
-        while($this->connect($clean, $will, $username, $password)==false){
+    /**
+     * Set a PSR-3 logger used for debug and error output.
+     *
+     * @return $this
+     */
+    public function setLogger(LoggerInterface $logger)
+    {
+        $this->logger = $logger;
+
+        return $this;
+    }
+
+    /**
+     * Provide extra SSL stream-context options (verify_peer, allow_self_signed, ...).
+     *
+     * @param  array<string, mixed>  $options
+     * @return $this
+     */
+    public function setTlsOptions(array $options)
+    {
+        $this->tlsOptions = $options;
+
+        return $this;
+    }
+
+    /**
+     * Set the keep-alive interval, in seconds.
+     *
+     * @return $this
+     */
+    public function setKeepalive($seconds)
+    {
+        $this->keepalive = (int) $seconds;
+
+        return $this;
+    }
+
+    /**
+     * Toggle whether failures throw an exception instead of returning false.
+     *
+     * @return $this
+     */
+    public function throwExceptions($throw = true)
+    {
+        $this->throwExceptions = (bool) $throw;
+
+        return $this;
+    }
+
+    /**
+     * Send a message to the configured logger (or fall back to echo/error_log).
+     */
+    protected function log($level, $message)
+    {
+        if ($this->logger) {
+            $this->logger->log($level, $message);
+
+            return;
+        }
+
+        if ($level === 'debug') {
+            if ($this->debug) {
+                echo $message."\n";
+            }
+
+            return;
+        }
+
+        error_log($message."\n");
+    }
+
+    /**
+     * Report a failure, either by throwing (when enabled) or returning false.
+     *
+     * @return false
+     */
+    protected function fail($message)
+    {
+        $this->log('error', $message);
+
+        if ($this->throwExceptions) {
+            throw new MqttConnectionException($message);
+        }
+
+        return false;
+    }
+
+    /**
+     * Write a payload to the socket, guarding against broken pipes.
+     *
+     * @return bool
+     */
+    protected function write($data)
+    {
+        $bytes = @fwrite($this->socket, $data);
+
+        if ($bytes === false || $bytes < strlen($data)) {
+            $this->log('error', 'Failed to write the full payload to the MQTT socket.');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    public function connect_auto($clean = true, $will = null, $username = null, $password = null)
+    {
+        while ($this->connect($clean, $will, $username, $password) == false) {
             sleep(10);
         }
         return true;
@@ -58,102 +179,137 @@ class MqttService
 
     /* connects to the broker
         inputs: $clean: should the client send a clean session flag */
-    function connect($clean = true, $will = NULL, $username = NULL, $password = NULL){
+    public function connect($clean = true, $will = null, $username = null, $password = null)
+    {
 
-        if($will) $this->will = $will;
-        if($username) $this->username = $username;
-        if($password) $this->password = $password;
+        if ($will) {
+            $this->will = $will;
+        }
+        if ($username) {
+            $this->username = $username;
+        }
+        if ($password) {
+            $this->password = $password;
+        }
         if ($this->cafile) {
-            $sslOptions = ["ssl" => [
+            $ssl = array_merge([
+                "verify_peer"      => true,
                 "verify_peer_name" => true,
-                "cafile" => $this->cafile
-            ]];
-            if( $this->localcert && $this->localpk )
-            {
-                $sslOptions["ssl"]["local_cert"] = $this->localcert;
-                $sslOptions["ssl"]["local_pk"] = $this->localpk;
+                "cafile"           => $this->cafile,
+            ], array_filter($this->tlsOptions, function ($value) {
+                return $value !== null;
+            }));
+            if ($this->localcert && $this->localpk) {
+                $ssl["local_cert"] = $this->localcert;
+                $ssl["local_pk"] = $this->localpk;
             }
-            $socketContext = stream_context_create($sslOptions);
+            $socketContext = stream_context_create(["ssl" => $ssl]);
             $this->socket = stream_socket_client("tls://" . $this->address . ":" . $this->port, $errno, $errstr, $this->timeout, STREAM_CLIENT_CONNECT, $socketContext);
         } else {
             $this->socket = stream_socket_client("tcp://" . $this->address . ":" . $this->port, $errno, $errstr, $this->timeout, STREAM_CLIENT_CONNECT);
         }
-        if (!$this->socket ) {
-            if($this->debug) error_log("stream_socket_create() $errno, $errstr \n");
-            return false;
+        if (!$this->socket) {
+            return $this->fail("stream_socket_client() failed to connect to {$this->address}:{$this->port} ($errno, $errstr)");
         }
         stream_set_timeout($this->socket, 5);
         stream_set_blocking($this->socket, 0);
         $i = 0;
         $buffer = "";
-        $buffer .= chr(0x00); $i++;
-        $buffer .= chr(0x06); $i++;
-        $buffer .= chr(0x4d); $i++;
-        $buffer .= chr(0x51); $i++;
-        $buffer .= chr(0x49); $i++;
-        $buffer .= chr(0x73); $i++;
-        $buffer .= chr(0x64); $i++;
-        $buffer .= chr(0x70); $i++;
-        $buffer .= chr(0x03); $i++;
+        $buffer .= chr(0x00);
+        $i++;
+        $buffer .= chr(0x06);
+        $i++;
+        $buffer .= chr(0x4d);
+        $i++;
+        $buffer .= chr(0x51);
+        $i++;
+        $buffer .= chr(0x49);
+        $i++;
+        $buffer .= chr(0x73);
+        $i++;
+        $buffer .= chr(0x64);
+        $i++;
+        $buffer .= chr(0x70);
+        $i++;
+        $buffer .= chr(0x03);
+        $i++;
         //No Will
         $var = 0;
-        if($clean) $var+=2;
+        if ($clean) {
+            $var += 2;
+        }
         //Add will info to header
-        if($this->will != NULL){
+        if ($this->will != null) {
             $var += 4; // Set will flag
             $var += ($this->will['qos'] << 3); //Set will qos
-            if($this->will['retain'])	$var += 32; //Set will retain
+            if ($this->will['retain']) {
+                $var += 32;
+            } //Set will retain
         }
-        if($this->username != NULL) $var += 128;	//Add username to header
-        if($this->password != NULL) $var += 64;	//Add password to header
-        $buffer .= chr($var); $i++;
+        if ($this->username != null) {
+            $var += 128;
+        }	//Add username to header
+        if ($this->password != null) {
+            $var += 64;
+        }	//Add password to header
+        $buffer .= chr($var);
+        $i++;
         //Keep alive
-        $buffer .= chr($this->keepalive >> 8); $i++;
-        $buffer .= chr($this->keepalive & 0xff); $i++;
-        $buffer .= $this->strwritestring($this->clientid,$i);
+        $buffer .= chr($this->keepalive >> 8);
+        $i++;
+        $buffer .= chr($this->keepalive & 0xff);
+        $i++;
+        $buffer .= $this->strwritestring($this->clientid, $i);
         //Adding will to payload
-        if($this->will != NULL){
-            $buffer .= $this->strwritestring($this->will['topic'],$i);
-            $buffer .= $this->strwritestring($this->will['content'],$i);
+        if ($this->will != null) {
+            $buffer .= $this->strwritestring($this->will['topic'], $i);
+            $buffer .= $this->strwritestring($this->will['content'], $i);
         }
-        if($this->username) $buffer .= $this->strwritestring($this->username,$i);
-        if($this->password) $buffer .= $this->strwritestring($this->password,$i);
+        if ($this->username) {
+            $buffer .= $this->strwritestring($this->username, $i);
+        }
+        if ($this->password) {
+            $buffer .= $this->strwritestring($this->password, $i);
+        }
         $head = "  ";
         $head[0] = chr(0x10);
         $head[1] = chr($i);
-        fwrite($this->socket, $head, 2);
-        fwrite($this->socket,  $buffer);
+        if (! $this->write($head) || ! $this->write($buffer)) {
+            return $this->fail('Connection failed! Unable to send the CONNECT packet to the broker.');
+        }
         $string = $this->read(4);
         // The broker must reply with a 4-byte CONNACK. Some brokers (e.g. newer
         // EMQX builds) may return an empty or truncated response on failure, so
         // guard against reading offsets that do not exist. See issues #45 and #49.
-        if(strlen($string) < 4){
-            error_log("Connection failed! The broker returned an empty or incomplete response.\n");
-            return false;
+        if (strlen($string) < 4) {
+            return $this->fail('Connection failed! The broker returned an empty or incomplete response.');
         }
-        if(ord($string[0])>>4 == 2 && $string[3] == chr(0)){
-            if($this->debug) echo "Connected to Broker\n";
-        }else{
-            error_log(sprintf("Connection failed! (Error: 0x%02x 0x%02x)\n",
-                ord($string[0]),ord($string[3])));
-            return false;
+        if (ord($string[0]) >> 4 == 2 && $string[3] == chr(0)) {
+            $this->log('debug', 'Connected to Broker');
+        } else {
+            return $this->fail(sprintf(
+                'Connection failed! (Error: 0x%02x 0x%02x)',
+                ord($string[0]),
+                ord($string[3])
+            ));
         }
         $this->timesinceping = time();
         return true;
     }
 
     /* read: reads in so many bytes */
-    function read($int = 8192, $nb = false){
+    public function read($int = 8192, $nb = false)
+    {
         //	print_r(socket_get_status($this->socket));
 
-        $string="";
+        $string = "";
         $togo = $int;
 
-        if($nb){
+        if ($nb) {
             return fread($this->socket, $togo);
         }
 
-        while (!feof($this->socket) && $togo>0) {
+        while (!feof($this->socket) && $togo > 0) {
             $fread = fread($this->socket, $togo);
             $string .= $fread;
             $togo = $int - strlen($string);
@@ -166,7 +322,8 @@ class MqttService
     }
 
     /* subscribe: subscribes to topics */
-    function subscribe($topics, $qos = 0){
+    public function subscribe($topics, $qos = 0)
+    {
         $i = 0;
         $buffer = $this->buildSubscribePayload($topics, $qos, $i);
 
@@ -176,11 +333,11 @@ class MqttService
         $head = chr($cmd);
         $head .= chr($i);
 
-        fwrite($this->socket, $head, 2);
-        fwrite($this->socket, $buffer, $i);
+        $this->write($head);
+        $this->write($buffer);
         $string = $this->read(2);
 
-        $bytes = ord(substr($string,1,1));
+        $bytes = ord(substr($string, 1, 1));
         $string = $this->read($bytes);
     }
 
@@ -200,12 +357,15 @@ class MqttService
      * @param int   $i      running byte counter (passed by reference)
      * @return string
      */
-    protected function buildSubscribePayload($topics, $qos, &$i){
+    protected function buildSubscribePayload($topics, $qos, &$i)
+    {
         $buffer = "";
         $id = $this->msgid;
-        $buffer .= chr($id >> 8);  $i++;
-        $buffer .= chr($id % 256);  $i++;
-        foreach($topics as $key => $topic){
+        $buffer .= chr($id >> 8);
+        $i++;
+        $buffer .= chr($id % 256);
+        $i++;
+        foreach ($topics as $key => $topic) {
             // Only genuine topic definitions carry a subscription callback.
             if (!is_array($topic) || !isset($topic['function'])) {
                 continue;
@@ -220,114 +380,142 @@ class MqttService
     }
 
     /* ping: sends a keep alive ping */
-    function ping(){
+    public function ping()
+    {
         $head = " ";
         $head = chr(0xc0);
         $head .= chr(0x00);
-        fwrite($this->socket, $head, 2);
-        if($this->debug) echo "ping sent\n";
+        $this->write($head);
+        $this->log('debug', 'ping sent');
     }
 
     /* disconnect: sends a proper disconnect cmd */
-    function disconnect(){
+    public function disconnect()
+    {
         $head = " ";
         $head[0] = chr(0xe0);
         $head[1] = chr(0x00);
-        fwrite($this->socket, $head, 2);
+        $this->write($head);
     }
 
     /* close: sends a proper disconect, then closes the socket */
-    function close(){
+    public function close()
+    {
         $this->disconnect();
         stream_socket_shutdown($this->socket, STREAM_SHUT_WR);
     }
 
     /* publish: publishes $content on a $topic */
-    function publish($topic, $content, $qos = 0, $retain = 0){
+    public function publish($topic, $content, $qos = 0, $retain = 0)
+    {
         $i = 0;
         $buffer = "";
-        $buffer .= $this->strwritestring($topic,$i);
+        $buffer .= $this->strwritestring($topic, $i);
         //$buffer .= $this->strwritestring($content,$i);
-        if($qos){
+        if ($qos) {
             $id = $this->msgid++;
-            $buffer .= chr($id >> 8);  $i++;
-            $buffer .= chr($id % 256);  $i++;
+            $buffer .= chr($id >> 8);
+            $i++;
+            $buffer .= chr($id % 256);
+            $i++;
         }
         $buffer .= $content;
-        $i+=strlen($content);
+        $i += strlen($content);
         $head = " ";
         $cmd = 0x30;
-        if($qos) $cmd += $qos << 1;
-        if($retain) $cmd += 1;
+        if ($qos) {
+            $cmd += $qos << 1;
+        }
+        if ($retain) {
+            $cmd += 1;
+        }
         $head[0] = chr($cmd);
         $head .= $this->setmsglength($i);
-        fwrite($this->socket, $head, strlen($head));
-        fwrite($this->socket, $buffer, $i);
+
+        return $this->write($head) && $this->write($buffer);
     }
 
     /* message: processes a received topic */
-    function message($msg){
-        $tlen = (ord($msg[0])<<8) + ord($msg[1]);
-        $topic = substr($msg,2,$tlen);
-        $msg = substr($msg,($tlen+2));
+    public function message($msg)
+    {
+        $tlen = (ord($msg[0]) << 8) + ord($msg[1]);
+        $topic = substr($msg, 2, $tlen);
+        $msg = substr($msg, ($tlen + 2));
         $found = 0;
-        foreach($this->topics as $key=>$top){
-            if( preg_match("/^".str_replace("#",".*",
-                    str_replace("+","[^\/]*",
-                        str_replace("/","\/",
-                            str_replace("$",'\$',
-                                $key))))."$/",$topic) ){
-                if(is_callable($top['function'])){
-                    call_user_func($top['function'],$topic,$msg);
+        foreach ($this->topics as $key => $top) {
+            if (preg_match("/^".str_replace(
+                "#",
+                ".*",
+                str_replace(
+                    "+",
+                    "[^\/]*",
+                    str_replace(
+                        "/",
+                        "\/",
+                        str_replace(
+                            "$",
+                            '\$',
+                            $key
+                        )
+                    )
+                )
+            )."$/", $topic)) {
+                if (is_callable($top['function'])) {
+                    call_user_func($top['function'], $topic, $msg);
                     $found = 1;
                 }
             }
         }
-        if($this->debug && !$found) echo "msg received but no match in subscriptions\n";
+        if (!$found) {
+            $this->log('debug', 'msg received but no match in subscriptions');
+        }
     }
 
     /* proc: the processing loop for an "always on" client
         set true when you are doing other stuff in the loop good for watching something else at the same time */
-    function proc( $loop = true){
-        if(1){
+    public function proc($loop = true)
+    {
+        if (1) {
             $sockets = array($this->socket);
-            $w = $e = NULL;
+            $w = $e = null;
             $cmd = 0;
 
             //$byte = fgetc($this->socket);
-            if(feof($this->socket)){
-                if($this->debug) echo "eof receive going to reconnect for good measure\n";
+            if (feof($this->socket)) {
+                $this->log('debug', 'eof receive going to reconnect for good measure');
                 fclose($this->socket);
                 $this->connect_auto(false);
-                if(count($this->topics))
+                if (count($this->topics)) {
                     $this->subscribe($this->topics);
+                }
             }
 
             $byte = $this->read(1, true);
 
-            if(!strlen($byte)){
-                if($loop){
+            if (!strlen($byte)) {
+                if ($loop) {
                     usleep(100000);
                 }
 
-            }else{
+            } else {
 
-                $cmd = (int)(ord($byte)/16);
-                if($this->debug) echo "Receive: $cmd\n";
+                $cmd = (int)(ord($byte) / 16);
+                $this->log('debug', "Receive: $cmd");
                 $multiplier = 1;
                 $value = 0;
-                do{
+                do {
                     $digit = ord($this->read(1));
                     $value += ($digit & 127) * $multiplier;
                     $multiplier *= 128;
-                }while (($digit & 128) != 0);
-                if($this->debug) echo "Fetching: $value\n";
+                } while (($digit & 128) != 0);
+                $this->log('debug', "Fetching: $value");
 
-                if($value)
+                if ($value) {
                     $string = $this->read($value);
+                }
 
-                if($cmd){
-                    switch($cmd){
+                if ($cmd) {
+                    switch ($cmd) {
                         case 3:
                             $this->message($string);
                             break;
@@ -335,51 +523,56 @@ class MqttService
                     $this->timesinceping = time();
                 }
             }
-            if($this->timesinceping < (time() - $this->keepalive )){
-                if($this->debug) echo "not found something so ping\n";
+            if ($this->timesinceping < (time() - $this->keepalive)) {
+                $this->log('debug', 'not found something so ping');
                 $this->ping();
             }
 
-            if($this->timesinceping<(time()-($this->keepalive*2))){
-                if($this->debug) echo "not seen a package in a while, disconnecting\n";
+            if ($this->timesinceping < (time() - ($this->keepalive * 2))) {
+                $this->log('debug', 'not seen a package in a while, disconnecting');
                 fclose($this->socket);
                 $this->connect_auto(false);
-                if(count($this->topics))
+                if (count($this->topics)) {
                     $this->subscribe($this->topics);
+                }
             }
         }
         return 1;
     }
 
     /* getmsglength: */
-    function getmsglength(&$msg, &$i){
+    public function getmsglength(&$msg, &$i)
+    {
         $multiplier = 1;
         $value = 0 ;
-        do{
+        do {
             $digit = ord($msg[$i]);
             $value += ($digit & 127) * $multiplier;
             $multiplier *= 128;
             $i++;
-        }while (($digit & 128) != 0);
+        } while (($digit & 128) != 0);
         return $value;
     }
 
     /* setmsglength: */
-    function setmsglength($len){
+    public function setmsglength($len)
+    {
         $string = "";
-        do{
+        do {
             $digit = $len % 128;
             $len = $len >> 7;
             // if there are more digits to encode, set the top bit of this digit
-            if ( $len > 0 )
+            if ($len > 0) {
                 $digit = ($digit | 0x80);
+            }
             $string .= chr($digit);
-        }while ( $len > 0 );
+        } while ($len > 0);
         return $string;
     }
 
     /* strwritestring: writes a string to a buffer */
-    function strwritestring($str, &$i){
+    public function strwritestring($str, &$i)
+    {
         $ret = " ";
         $len = strlen($str);
         $msb = $len >> 8;
@@ -387,17 +580,21 @@ class MqttService
         $ret = chr($msb);
         $ret .= chr($lsb);
         $ret .= $str;
-        $i += ($len+2);
+        $i += ($len + 2);
         return $ret;
     }
 
-    function printstr($string){
+    public function printstr($string)
+    {
         $strlen = strlen($string);
-        for($j=0;$j<$strlen;$j++){
+        for ($j = 0;$j < $strlen;$j++) {
             $num = ord($string[$j]);
-            if($num > 31)
-                $chr = $string[$j]; else $chr = " ";
-            printf("%4d: %08b : 0x%02x : %s \n",$j,$num,$num,$chr);
+            if ($num > 31) {
+                $chr = $string[$j];
+            } else {
+                $chr = " ";
+            }
+            printf("%4d: %08b : 0x%02x : %s \n", $j, $num, $num, $chr);
         }
     }
 }

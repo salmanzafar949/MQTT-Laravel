@@ -1,0 +1,10 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 4
+    paths:
+        - src
+    # The wire-protocol code deliberately does low-level byte manipulation on
+    # loosely-typed properties; keep the analysis pragmatic rather than noisy.
+    checkMissingIterableValueType: false
