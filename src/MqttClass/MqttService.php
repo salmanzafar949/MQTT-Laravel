@@ -33,13 +33,13 @@ class MqttService
     public $localcert;
     public $localpk;
 
-    function __construct($address, $port, $timeout, $clientId, $cafile = NULL, $localCert = NULL, $localPk = NULL, $debug=false){
+    function __construct($address, $port, $timeout = 0, $clientId = null, $cafile = NULL, $localCert = NULL, $localPk = NULL, $debug=false){
         $this->debug = $debug;
         $this->broker($address, $port, $timeout, $clientId, $cafile, $localCert, $localPk);
     }
 
     /* sets the broker details */
-    function broker($address, $port, $timeout, $clientid, $cafile = NULL, $localcert = NULL, $localpk = NULL){
+    function broker($address, $port, $timeout = 0, $clientid = null, $cafile = NULL, $localcert = NULL, $localpk = NULL){
         $this->address = $address;
         $this->port = $port;
         $this->timeout = $timeout;
@@ -124,6 +124,13 @@ class MqttService
         fwrite($this->socket, $head, 2);
         fwrite($this->socket,  $buffer);
         $string = $this->read(4);
+        // The broker must reply with a 4-byte CONNACK. Some brokers (e.g. newer
+        // EMQX builds) may return an empty or truncated response on failure, so
+        // guard against reading offsets that do not exist. See issues #45 and #49.
+        if(strlen($string) < 4){
+            error_log("Connection failed! The broker returned an empty or incomplete response.\n");
+            return false;
+        }
         if(ord($string[0])>>4 == 2 && $string[3] == chr(0)){
             if($this->debug) echo "Connected to Broker\n";
         }else{
@@ -161,20 +168,8 @@ class MqttService
     /* subscribe: subscribes to topics */
     function subscribe($topics, $qos = 0){
         $i = 0;
-        $buffer = "";
-        $id = $this->msgid;
-        $buffer .= chr($id >> 8);  $i++;
-        $buffer .= chr($id % 256);  $i++;
-        foreach($topics as $key => $topic){
-            if (!empty($topic))
-            {
-                $buffer .= $this->strwritestring($key,$i);
-                $callback = func_get_args()[0];
-                $buffer .= chr($callback["qos"]);
-                $i++;
-                $this->topics[$key] = $topic;
-            }
-        }
+        $buffer = $this->buildSubscribePayload($topics, $qos, $i);
+
         $cmd = 0x80;
         //$qos
         $cmd +=	($qos << 1);
@@ -187,6 +182,41 @@ class MqttService
 
         $bytes = ord(substr($string,1,1));
         $string = $this->read($bytes);
+    }
+
+    /**
+     * Builds the SUBSCRIBE packet payload for the given topics and registers
+     * them for later message matching.
+     *
+     * Each topic entry is expected to be an array in the shape
+     * ["qos" => int, "function" => callable]. Any other value (for example a
+     * bare scalar accidentally mixed into the list) is skipped so that we never
+     * try to read the "qos" offset of a non-array. This resolves the
+     * "Undefined index: qos" / "Trying to access array offset" errors reported
+     * in issues #46, #36, #30 and #27.
+     *
+     * @param array $topics
+     * @param int   $qos    default QoS used when a topic has none of its own
+     * @param int   $i      running byte counter (passed by reference)
+     * @return string
+     */
+    protected function buildSubscribePayload($topics, $qos, &$i){
+        $buffer = "";
+        $id = $this->msgid;
+        $buffer .= chr($id >> 8);  $i++;
+        $buffer .= chr($id % 256);  $i++;
+        foreach($topics as $key => $topic){
+            // Only genuine topic definitions carry a subscription callback.
+            if (!is_array($topic) || !isset($topic['function'])) {
+                continue;
+            }
+            $buffer .= $this->strwritestring($key, $i);
+            $topicQos = isset($topic['qos']) ? (int) $topic['qos'] : (int) $qos;
+            $buffer .= chr($topicQos);
+            $i++;
+            $this->topics[$key] = $topic;
+        }
+        return $buffer;
     }
 
     /* ping: sends a keep alive ping */

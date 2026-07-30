@@ -1,0 +1,55 @@
+name: release
+
+# Publishing model:
+#   1. Packagist is connected to this repo (via the Packagist GitHub App or a
+#      webhook), so it re-reads the repository automatically on every push/tag.
+#   2. Composer versions come from git tags. Pushing a semver tag (e.g. v3.0.0)
+#      is therefore what actually "publishes" a new version to Packagist.
+#
+# This workflow gates that tag: it runs the test suite and, only if it passes,
+# creates a GitHub Release for the tag. Packagist picks the tag up on its own.
+#
+# To cut a release:
+#   git tag v3.0.0 && git push origin v3.0.0
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Validate tag (PHP 8.3 / Laravel 12)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: openssl, mbstring
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Run test suite
+        run: vendor/bin/phpunit
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    name: Create GitHub Release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
