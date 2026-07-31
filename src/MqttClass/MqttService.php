@@ -510,6 +510,7 @@ class MqttService
                 } while (($digit & 128) != 0);
                 $this->log('debug', "Fetching: $value");
 
+                $string = '';
                 if ($value) {
                     $string = $this->read($value);
                 }
