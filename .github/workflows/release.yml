@@ -1,34 +1,53 @@
 name: release
 
-# Publishing model:
-#   1. Packagist is connected to this repo (via the Packagist GitHub App or a
-#      webhook), so it re-reads the repository automatically on every push/tag.
-#   2. Composer versions come from git tags. Pushing a semver tag (e.g. v3.0.0)
-#      is therefore what actually "publishes" a new version to Packagist.
+# Automated releases driven by composer.json.
 #
-# This workflow gates that tag: it runs the test suite and, only if it passes,
-# creates a GitHub Release for the tag. Packagist picks the tag up on its own.
+# On every push to master (i.e. when a PR is merged) this workflow reads the
+# "version" field from composer.json. If a matching tag does not yet exist, it
+# runs the test suite and then creates the tag + a GitHub Release. Packagist is
+# connected to this repository (via the Packagist GitHub App), so it publishes
+# the new version from the tag automatically.
 #
-# To cut a release:
-#   git tag v3.0.0 && git push origin v3.0.0
+# To cut a release: bump "version" in composer.json in your PR and merge it.
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
 
 permissions:
   contents: write
 
 jobs:
-  test:
+  release:
     runs-on: ubuntu-latest
-    name: Validate tag (PHP 8.3 / Laravel 12)
+    name: Tag & release from composer.json
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from composer.json
+        id: version
+        run: |
+          VERSION=$(jq -r '.version // empty' composer.json)
+          if [ -z "$VERSION" ]; then
+            echo "No version set in composer.json; nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists; skipping release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup PHP
+        if: steps.version.outputs.release == 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -36,20 +55,18 @@ jobs:
           coverage: none
 
       - name: Install dependencies
+        if: steps.version.outputs.release == 'true'
         run: composer update --prefer-dist --no-interaction --no-progress
 
       - name: Run test suite
+        if: steps.version.outputs.release == 'true'
         run: vendor/bin/phpunit
 
-  release:
-    needs: test
-    runs-on: ubuntu-latest
-    name: Create GitHub Release
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create release
+      - name: Create tag and GitHub Release
+        if: steps.version.outputs.release == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true

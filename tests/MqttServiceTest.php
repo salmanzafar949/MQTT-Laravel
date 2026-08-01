@@ -4,6 +4,8 @@ namespace Salman\Mqtt\Tests;
 
 use PHPUnit\Framework\TestCase as BaseTestCase;
 use ReflectionMethod;
+use ReflectionProperty;
+use Salman\Mqtt\Exceptions\MqttConnectionException;
 use Salman\Mqtt\MqttClass\MqttService;
 
 class MqttServiceTest extends BaseTestCase
@@ -21,6 +23,14 @@ class MqttServiceTest extends BaseTestCase
         $ref->setAccessible(true);
 
         return $ref->invokeArgs($object, $args);
+    }
+
+    private function readProperty($object, $property)
+    {
+        $ref = new ReflectionProperty($object, $property);
+        $ref->setAccessible(true);
+
+        return $ref->getValue($object);
     }
 
     /**
@@ -48,7 +58,8 @@ class MqttServiceTest extends BaseTestCase
         $i = 0;
 
         $topics = [
-            'sensors/temperature' => ['qos' => 1, 'function' => function () {}],
+            'sensors/temperature' => ['qos' => 1, 'function' => function () {
+            }],
         ];
 
         $buffer = $this->invoke($service, 'buildSubscribePayload', [$topics, 0, &$i]);
@@ -80,7 +91,8 @@ class MqttServiceTest extends BaseTestCase
         $i = 0;
 
         $topics = [
-            'home/#' => ['function' => function () {}],
+            'home/#' => ['function' => function () {
+            }],
         ];
 
         $buffer = $this->invoke($service, 'buildSubscribePayload', [$topics, 2, &$i]);
@@ -99,8 +111,10 @@ class MqttServiceTest extends BaseTestCase
 
         $topics = [
             'qos'          => 0,                 // legacy scalar seed
-            'stray'        => function () {},    // a bare closure
-            'valid/topic'  => ['qos' => 0, 'function' => function () {}],
+            'stray'        => function () {
+            },    // a bare closure
+            'valid/topic'  => ['qos' => 0, 'function' => function () {
+            }],
         ];
 
         $buffer = $this->invoke($service, 'buildSubscribePayload', [$topics, 0, &$i]);
@@ -138,5 +152,38 @@ class MqttServiceTest extends BaseTestCase
         $this->assertSame(5, ord($result[1]));      // length LSB
         $this->assertSame('hello', substr($result, 2));
         $this->assertSame(7, $i);                   // 5 + 2 length bytes
+    }
+
+    public function test_the_configuration_setters_are_fluent_and_store_values()
+    {
+        $service = $this->makeService();
+
+        $result = $service
+            ->setKeepalive(42)
+            ->setTlsOptions(['verify_peer' => false])
+            ->throwExceptions(true);
+
+        $this->assertSame($service, $result);
+        $this->assertSame(42, $service->keepalive);
+        $this->assertSame(['verify_peer' => false], $this->readProperty($service, 'tlsOptions'));
+        $this->assertTrue($this->readProperty($service, 'throwExceptions'));
+    }
+
+    public function test_a_failed_connection_returns_false_by_default()
+    {
+        // Port 1 has nothing listening, so the connection is refused quickly.
+        $service = new MqttService('127.0.0.1', 1, 1);
+
+        $this->assertFalse(@$service->connect());
+    }
+
+    public function test_a_failed_connection_throws_when_exceptions_are_enabled()
+    {
+        $service = new MqttService('127.0.0.1', 1, 1);
+        $service->throwExceptions(true);
+
+        $this->expectException(MqttConnectionException::class);
+
+        @$service->connect();
     }
 }

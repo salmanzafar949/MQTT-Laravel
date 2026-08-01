@@ -2,6 +2,7 @@
     "name": "salmanzafar/laravel-mqtt",
     "description": "A simple Laravel Library to connect/publish/subscribe to MQTT broker",
     "type": "library",
+    "version": "3.1.0",
     "license": "MIT",
     "authors": [
         {
@@ -43,7 +44,8 @@
         "php 8.4"
     ],
     "require": {
-        "php": "^7.2 || ^8.0"
+        "php": "^7.2 || ^8.0",
+        "psr/log": "^1.0 || ^2.0 || ^3.0"
     },
     "require-dev": {
         "orchestra/testbench": "^7.0 || ^8.0 || ^9.0 || ^10.0",
@@ -78,6 +80,9 @@
         "sort-packages": true
     },
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "lint": "pint --test",
+        "lint:fix": "pint",
+        "analyse": "phpstan analyse"
     }
 }

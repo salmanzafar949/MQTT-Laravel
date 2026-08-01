@@ -1,0 +1,13 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    # Starting baseline: level 1 passes cleanly against the legacy wire-protocol
+    # code. Raise this over time as the internals are modernised.
+    level: 1
+    paths:
+        - src
+    excludePaths:
+        # This is the publishable Laravel config file; env() is the correct
+        # idiom there, so it is data rather than something to statically analyse.
+        - src/config/mqtt.php

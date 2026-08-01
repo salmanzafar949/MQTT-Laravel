@@ -1,0 +1,53 @@
+name: quality
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  code-style:
+    runs-on: ubuntu-latest
+    name: Code style (Pint)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: |
+          composer update --prefer-dist --no-interaction --no-progress
+          composer require "laravel/pint" --dev --no-interaction
+
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    name: Static analysis (PHPStan)
+    # Advisory for now: the wire-protocol code is legacy and the analysis
+    # baseline has not been executed in this environment yet.
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: |
+          composer update --prefer-dist --no-interaction --no-progress
+          composer require "larastan/larastan:^3.0" --dev --no-interaction
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse
