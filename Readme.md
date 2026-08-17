@@ -21,10 +21,16 @@ example application is available in the
   - [Subscribing](#subscribing)
   - [Multiple topics](#subscribing-to-multiple-topics)
   - [Helper functions](#helper-functions)
+- [Artisan commands](#artisan-commands)
+- [Multiple connections](#multiple-connections)
+- [Events](#events)
+- [Notifications](#notifications)
 - [TLS / SSL](#tls--ssl)
 - [Error handling](#error-handling)
+- [Testing your app](#testing-your-app)
 - [Available methods](#available-methods)
 - [Testing & quality](#testing--quality)
+- [Roadmap](#roadmap)
 - [Releasing](#releasing)
 - [Changelog](#changelog)
 - [Contributing](#contributing)
@@ -192,6 +198,83 @@ connectToPublish($topic, $message, $clientId = null, $retain = null);
 connectToSubscribe($topic, $clientId = null);
 ```
 
+## Artisan commands
+
+Publish or subscribe straight from the CLI — no need to hand-write a console
+command:
+
+```bash
+# Publish a message
+php artisan mqtt:publish home/light on
+php artisan mqtt:publish home/light on --retain --connection=sensors
+
+# Subscribe to one or more topics (Ctrl+C to stop)
+php artisan mqtt:subscribe home/light
+php artisan mqtt:subscribe "sensors/#" "home/+/status" --connection=sensors
+```
+
+## Multiple connections
+
+Talk to more than one broker by defining extra connections in `config/mqtt.php`.
+The top-level settings are the `default` connection; each named connection
+inherits them and overrides only what it needs:
+
+```php
+'connections' => [
+    'sensors' => [
+        'host' => env('MQTT_SENSORS_HOST', 'broker.example.com'),
+        'port' => env('MQTT_SENSORS_PORT', '8883'),
+    ],
+],
+```
+
+```php
+Mqtt::connection('sensors')->ConnectAndPublish('sensors/temp', '21.5');
+Mqtt::ConnectAndPublish('home/light', 'on'); // default connection
+```
+
+## Events
+
+Every received message dispatches a `Salman\Mqtt\Events\MqttMessageReceived`
+event (in addition to your subscription callback), so you can handle messages
+with a listener:
+
+```php
+use Salman\Mqtt\Events\MqttMessageReceived;
+
+Event::listen(function (MqttMessageReceived $event) {
+    logger()->info("[{$event->connection}] {$event->topic}: {$event->message}");
+});
+```
+
+## Notifications
+
+Send Laravel notifications over MQTT. Add `'mqtt'` to `via()` and return a
+payload (or an `MqttMessage`) from `toMqtt()`:
+
+```php
+use Illuminate\Notifications\Notification;
+use Salman\Mqtt\Notifications\MqttMessage;
+
+class DeviceOffline extends Notification
+{
+    public function via($notifiable)
+    {
+        return ['mqtt'];
+    }
+
+    public function toMqtt($notifiable)
+    {
+        return MqttMessage::create('offline')
+            ->topic("devices/{$notifiable->id}/status")
+            ->retain();
+    }
+}
+```
+
+The topic can come from the `MqttMessage` or from a
+`routeNotificationForMqtt()` method on the notifiable.
+
 ## TLS / SSL
 
 Provide a CA file (and optionally a client certificate) to connect over
@@ -227,12 +310,36 @@ try {
 }
 ```
 
+## Testing your app
+
+Use `Mqtt::fake()` to swap the real client for a recorder and assert on what
+your application published — no broker required:
+
+```php
+use Salman\Mqtt\Facades\Mqtt;
+
+public function test_it_publishes_a_reading()
+{
+    Mqtt::fake();
+
+    // ... code under test calls Mqtt::ConnectAndPublish('sensors/temp', '21.5') ...
+
+    Mqtt::assertPublished('sensors/temp');
+    Mqtt::assertPublished('sensors/temp', '21.5');
+    Mqtt::assertPublished('sensors/temp', fn ($payload) => (float) $payload > 20);
+    Mqtt::assertPublishedCount(1);
+    Mqtt::assertNotPublished('sensors/humidity');
+}
+```
+
 ## Available methods
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `ConnectAndPublish(string $topic, string $message, string\|int $clientId = null, int $retain = null)` | `bool` | Connect, publish a message and disconnect. |
 | `ConnectAndSubscribe(string\|array $topic, callable $callback, string\|int $clientId = null)` | `bool` | Connect and listen for messages on one or more topics. |
+| `connection(string $name = null)` | `Mqtt` | Get a specific broker connection. |
+| `fake()` | `MqttFake` | Swap in a test double that records published messages. |
 
 > PHP method names are case-insensitive, so `Mqtt::connectAndPublish(...)` and
 > `Mqtt::connectAndSubscribe(...)` work as well.
@@ -255,6 +362,14 @@ composer analyse     # run PHPStan
 The Pint and PHPStan binaries are installed on demand by the `quality` CI
 workflow; to run them locally add them once with
 `composer require --dev laravel/pint larastan/larastan`.
+
+## Roadmap
+
+The wire protocol is still the legacy phpMQTT 3.1 implementation. The next major
+version (v4) will move it onto [`php-mqtt/client`](https://github.com/php-mqtt/client)
+for **MQTT 3.1.1 / 5.0**, real **QoS 1/2**, **Last Will & Testament** and
+**message expiry**, while keeping the Laravel-facing API. See the
+[v4 migration plan](docs/UPGRADING-v4.md).
 
 ## Releasing
 

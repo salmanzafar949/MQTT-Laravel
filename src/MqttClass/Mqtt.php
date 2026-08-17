@@ -9,6 +9,8 @@
 
 namespace Salman\Mqtt\MqttClass;
 
+use Salman\Mqtt\Events\MqttMessageReceived;
+
 /*
     Licence
     Copyright (c) 2019 Salman Zafar
@@ -49,22 +51,35 @@ class Mqtt
     protected $tls = [];
     protected $exceptions = false;
 
-    public function __construct()
+    /** @var string name of the connection this instance represents */
+    protected $connection = 'default';
+
+    /**
+     * @param  array<string, mixed>|null  $config  connection config; when null the
+     *                                              flat `mqtt.*` config is used (legacy default connection)
+     * @param  string  $connection  the connection name (used for dispatched events)
+     */
+    public function __construct(array $config = null, $connection = 'default')
     {
-        $this->host         = config('mqtt.host');
-        $this->username     = config('mqtt.username');
-        $this->password     = config('mqtt.password');
-        $this->cert_file    = config('mqtt.certfile');
-        $this->local_cert   = config('mqtt.localcert');
-        $this->local_pk     = config('mqtt.localpk');
-        $this->port         = config('mqtt.port');
-        $this->timeout      = config('mqtt.timeout');
-        $this->debug        = config('mqtt.debug');
-        $this->qos          = config('mqtt.qos');
-        $this->retain       = config('mqtt.retain');
-        $this->keepalive    = config('mqtt.keepalive', 10);
-        $this->tls          = config('mqtt.tls', []);
-        $this->exceptions   = config('mqtt.exceptions', false);
+        if ($config === null) {
+            $config = function_exists('config') ? (array) config('mqtt') : [];
+        }
+
+        $this->connection  = $connection;
+        $this->host        = $config['host'] ?? null;
+        $this->username    = $config['username'] ?? null;
+        $this->password    = $config['password'] ?? null;
+        $this->cert_file   = $config['certfile'] ?? null;
+        $this->local_cert  = $config['localcert'] ?? null;
+        $this->local_pk    = $config['localpk'] ?? null;
+        $this->port        = $config['port'] ?? null;
+        $this->timeout     = $config['timeout'] ?? 0;
+        $this->debug       = $config['debug'] ?? false;
+        $this->qos         = $config['qos'] ?? 0;
+        $this->retain      = $config['retain'] ?? 0;
+        $this->keepalive   = $config['keepalive'] ?? 10;
+        $this->tls         = $config['tls'] ?? [];
+        $this->exceptions  = $config['exceptions'] ?? false;
     }
 
     /**
@@ -109,6 +124,30 @@ class Mqtt
     }
 
     /**
+     * Dispatch the MqttMessageReceived event when running inside Laravel.
+     *
+     * @param  string  $topic
+     * @param  string  $message
+     * @return void
+     */
+    protected function dispatchReceived($topic, $message)
+    {
+        if (function_exists('app') && app()->bound('events')) {
+            app('events')->dispatch(new MqttMessageReceived($topic, $message, $this->connection));
+        }
+    }
+
+    /**
+     * The name of the connection this instance represents.
+     *
+     * @return string
+     */
+    public function getConnectionName()
+    {
+        return $this->connection;
+    }
+
+    /**
      * @param  string  $topic
      * @param  string  $msg
      * @param  string|int|null  $client_id
@@ -144,9 +183,15 @@ class Mqtt
         if ($client->connect(true, null, $this->username, $this->password)) {
             $topics = is_array($topic) ? $topic : [$topic];
 
+            $handler = function ($topic, $message) use ($proc) {
+                $this->dispatchReceived($topic, $message);
+
+                return call_user_func($proc, $topic, $message);
+            };
+
             $topicData = [];
             foreach ($topics as $topicName) {
-                $topicData[$topicName] = ["qos" => (int) $this->qos, "function" => $proc];
+                $topicData[$topicName] = ["qos" => (int) $this->qos, "function" => $handler];
             }
 
             $client->subscribe($topicData, $this->qos);

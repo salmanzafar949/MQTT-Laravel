@@ -4,21 +4,27 @@ namespace Salman\Mqtt\Tests;
 
 use Salman\Mqtt\Facades\Mqtt as MqttFacade;
 use Salman\Mqtt\MqttClass\Mqtt;
+use Salman\Mqtt\MqttManager;
 
 class ServiceProviderTest extends TestCase
 {
-    public function test_it_binds_the_mqtt_singleton_into_the_container()
+    public function test_it_binds_the_mqtt_manager_into_the_container()
     {
         $this->assertTrue($this->app->bound('Mqtt'));
-        $this->assertInstanceOf(Mqtt::class, $this->app->make('Mqtt'));
+        $this->assertInstanceOf(MqttManager::class, $this->app->make('Mqtt'));
+        $this->assertInstanceOf(MqttManager::class, $this->app->make(MqttManager::class));
     }
     public function test_the_mqtt_binding_is_a_singleton()
     {
         $this->assertSame($this->app->make('Mqtt'), $this->app->make('Mqtt'));
     }
-    public function test_it_resolves_the_mqtt_facade()
+    public function test_it_resolves_the_mqtt_facade_to_the_manager()
     {
-        $this->assertInstanceOf(Mqtt::class, MqttFacade::getFacadeRoot());
+        $this->assertInstanceOf(MqttManager::class, MqttFacade::getFacadeRoot());
+    }
+    public function test_the_default_connection_resolves_to_an_mqtt_instance()
+    {
+        $this->assertInstanceOf(Mqtt::class, $this->app->make('Mqtt')->connection());
     }
     public function test_it_merges_the_default_configuration()
     {
