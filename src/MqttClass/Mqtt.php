@@ -59,7 +59,7 @@ class Mqtt
      *                                              flat `mqtt.*` config is used (legacy default connection)
      * @param  string  $connection  the connection name (used for dispatched events)
      */
-    public function __construct(array $config = null, $connection = 'default')
+    public function __construct(?array $config = null, $connection = 'default')
     {
         if ($config === null) {
             $config = function_exists('config') ? (array) config('mqtt') : [];
