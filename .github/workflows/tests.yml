@@ -52,3 +52,37 @@ jobs:
 
       - name: Run test suite
         run: vendor/bin/phpunit
+
+  integration:
+    runs-on: ubuntu-latest
+    name: Integration (real Mosquitto broker)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: openssl, mbstring, pcntl, sockets
+          coverage: none
+
+      - name: Start Mosquitto broker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients
+          printf 'listener 1883\nallow_anonymous true\n' | sudo tee /etc/mosquitto/conf.d/ci.conf
+          sudo service mosquitto restart
+          # Wait for the broker to accept connections.
+          for i in $(seq 1 10); do
+            mosquitto_pub -h 127.0.0.1 -p 1883 -t ci/ping -m up && break
+            sleep 1
+          done
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Run broker round-trip test
+        env:
+          MQTT_E2E: '1'
+        run: vendor/bin/phpunit --filter BrokerRoundTripTest

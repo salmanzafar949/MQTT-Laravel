@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Mqtt::ConnectAndPublish(...)` / `ConnectAndSubscribe(...)` calls are proxied
   to the default connection and keep working unchanged.
 
+### Fixed
+- **Subscribing now works against strict brokers (e.g. Mosquitto 2.x).** The
+  SUBSCRIBE packet was sent with an invalid fixed-header byte (`0x80` instead of
+  the mandatory `0x82`), which strict brokers reject as malformed, silently
+  dropping the subscription. This is the root cause of the long-standing
+  "unable to subscribe" reports (#42, #46). Verified with a real-broker
+  round-trip integration test.
+
 ## [3.1.0] - 2026-07-30
 
 ### Added
