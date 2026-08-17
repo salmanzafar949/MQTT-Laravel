@@ -5,6 +5,38 @@ All notable changes to `salmanzafar/laravel-mqtt` will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-08-01
+
+### Added
+- **Named multi-broker connections.** Define extra brokers under
+  `mqtt.connections` and select them with `Mqtt::connection('name')`. The
+  existing flat config remains the "default" connection (backwards compatible).
+- **Artisan commands** `mqtt:publish {topic} {message}` and
+  `mqtt:subscribe {topic*}` (with `--connection`, `--client-id`, `--retain`
+  options and graceful Ctrl+C handling).
+- **`MqttMessageReceived` event**, dispatched for every received message in
+  addition to the subscription callback.
+- **Notification channel** — add `'mqtt'` to a notification's `via()` and return
+  a payload/`MqttMessage` from `toMqtt()` to publish notifications over MQTT.
+- **`Mqtt::fake()`** test double with `assertPublished`, `assertNotPublished`,
+  `assertNothingPublished` and `assertPublishedCount` for testing app code
+  without a broker.
+- A [v4 migration plan](docs/UPGRADING-v4.md) for moving the wire protocol onto
+  `php-mqtt/client` (MQTT 3.1.1/5.0, real QoS 1/2, LWT, message expiry).
+
+### Changed
+- The `Mqtt` facade now resolves an `MqttManager`; existing
+  `Mqtt::ConnectAndPublish(...)` / `ConnectAndSubscribe(...)` calls are proxied
+  to the default connection and keep working unchanged.
+
+### Fixed
+- **Subscribing now works against strict brokers (e.g. Mosquitto 2.x).** The
+  SUBSCRIBE packet was sent with an invalid fixed-header byte (`0x80` instead of
+  the mandatory `0x82`), which strict brokers reject as malformed, silently
+  dropping the subscription. This is the root cause of the long-standing
+  "unable to subscribe" reports (#42, #46). Verified with a real-broker
+  round-trip integration test.
+
 ## [3.1.0] - 2026-07-30
 
 ### Added

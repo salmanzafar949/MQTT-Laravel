@@ -44,4 +44,25 @@ return [
         'ciphers'           => env('MQTT_TLS_CIPHERS', null),
         'passphrase'        => env('MQTT_TLS_PASSPHRASE', null),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Additional named connections
+    |--------------------------------------------------------------------------
+    | The settings above are the "default" connection. To talk to more than one
+    | broker, define extra connections here and select them with
+    | Mqtt::connection('name'). Each connection inherits the settings above and
+    | overrides only what it needs.
+    |
+    | 'connections' => [
+    |     'sensors' => [
+    |         'host' => env('MQTT_SENSORS_HOST', '127.0.0.1'),
+    |         'port' => env('MQTT_SENSORS_PORT', '1883'),
+    |     ],
+    | ],
+    */
+
+    'default' => env('MQTT_CONNECTION', 'default'),
+
+    'connections' => [],
 ];

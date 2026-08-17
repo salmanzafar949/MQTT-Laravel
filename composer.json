@@ -2,7 +2,7 @@
     "name": "salmanzafar/laravel-mqtt",
     "description": "A simple Laravel Library to connect/publish/subscribe to MQTT broker",
     "type": "library",
-    "version": "3.1.0",
+    "version": "3.2.0",
     "license": "MIT",
     "authors": [
         {

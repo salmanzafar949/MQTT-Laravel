@@ -327,11 +327,12 @@ class MqttService
         $i = 0;
         $buffer = $this->buildSubscribePayload($topics, $qos, $i);
 
-        $cmd = 0x80;
-        //$qos
-        $cmd +=	($qos << 1);
-        $head = chr($cmd);
-        $head .= chr($i);
+        // SUBSCRIBE fixed header: packet type 8 (0x80) with the mandatory
+        // reserved flags 0b0010 -> 0x82. Strict brokers (e.g. Mosquitto 2.x)
+        // reject a 0x80 header as malformed and silently drop the subscription,
+        // which is the long-standing "unable to subscribe" bug (#42, #46).
+        $head = chr(0x82);
+        $head .= $this->setmsglength($i);
 
         $this->write($head);
         $this->write($buffer);
