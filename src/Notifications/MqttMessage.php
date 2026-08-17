@@ -32,11 +32,11 @@ class MqttMessage
 
     /**
      * @param  string  $payload
-     * @return static
+     * @return self
      */
     public static function create($payload = '')
     {
-        return new static($payload);
+        return new self($payload);
     }
 
     /**
