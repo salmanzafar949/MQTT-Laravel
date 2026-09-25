@@ -5,6 +5,17 @@ All notable changes to `salmanzafar/laravel-mqtt` will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-09-25
+
+### Added
+- **Queued / async publishing.** `Mqtt::queue($topic, $message, $clientId, $retain, $connection)`
+  dispatches a `PublishMqttMessage` job so HTTP requests and other hot paths
+  don't block on broker I/O. Pin the jobs to a queue connection/name via the new
+  `mqtt.queue` config. `Mqtt::fake()` records queued publishes with matching
+  assertions (`assertQueued`, `assertNotQueued`, `assertNothingQueued`,
+  `assertQueuedCount`). Verified end-to-end: dispatch → database queue → worker →
+  real broker delivery.
+
 ## [3.2.0] - 2026-08-01
 
 ### Added

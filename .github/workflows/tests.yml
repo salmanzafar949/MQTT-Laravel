@@ -85,4 +85,4 @@ jobs:
       - name: Run broker round-trip test
         env:
           MQTT_E2E: '1'
-        run: vendor/bin/phpunit --filter BrokerRoundTripTest
+        run: vendor/bin/phpunit --filter Broker

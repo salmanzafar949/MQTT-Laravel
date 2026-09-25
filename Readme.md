@@ -21,6 +21,7 @@ example application is available in the
   - [Subscribing](#subscribing)
   - [Multiple topics](#subscribing-to-multiple-topics)
   - [Helper functions](#helper-functions)
+- [Queued publishing](#queued-publishing)
 - [Artisan commands](#artisan-commands)
 - [Multiple connections](#multiple-connections)
 - [Events](#events)
@@ -198,6 +199,27 @@ connectToPublish($topic, $message, $clientId = null, $retain = null);
 connectToSubscribe($topic, $clientId = null);
 ```
 
+## Queued publishing
+
+Publishing opens a socket to the broker, which you usually don't want to do
+inline in an HTTP request. `Mqtt::queue(...)` dispatches a job instead, so the
+request returns immediately and a queue worker does the publish:
+
+```php
+Mqtt::queue('home/light', 'on');
+Mqtt::queue('sensors/temp', '21.5', $clientId = null, $retain = 1, $connection = 'sensors');
+```
+
+Make sure a queue worker is running (`php artisan queue:work`). Optionally pin
+the jobs to a specific queue connection and/or name in `config/mqtt.php`:
+
+```php
+'queue' => [
+    'connection' => env('MQTT_QUEUE_CONNECTION', null), // null = default queue connection
+    'name'       => env('MQTT_QUEUE', null),            // null = default queue
+],
+```
+
 ## Artisan commands
 
 Publish or subscribe straight from the CLI — no need to hand-write a console
@@ -332,14 +354,25 @@ public function test_it_publishes_a_reading()
 }
 ```
 
+Queued publishes are recorded too, with matching assertions:
+
+```php
+Mqtt::fake();
+// ... Mqtt::queue('sensors/temp', '21.5') ...
+Mqtt::assertQueued('sensors/temp', '21.5');
+Mqtt::assertQueuedCount(1);
+Mqtt::assertNothingQueued();
+```
+
 ## Available methods
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `ConnectAndPublish(string $topic, string $message, string\|int $clientId = null, int $retain = null)` | `bool` | Connect, publish a message and disconnect. |
 | `ConnectAndSubscribe(string\|array $topic, callable $callback, string\|int $clientId = null)` | `bool` | Connect and listen for messages on one or more topics. |
+| `queue(string $topic, string $message, string\|int $clientId = null, int $retain = null, string $connection = null)` | `PendingDispatch` | Publish asynchronously via a queued job. |
 | `connection(string $name = null)` | `Mqtt` | Get a specific broker connection. |
-| `fake()` | `MqttFake` | Swap in a test double that records published messages. |
+| `fake()` | `MqttFake` | Swap in a test double that records published/queued messages. |
 
 > PHP method names are case-insensitive, so `Mqtt::connectAndPublish(...)` and
 > `Mqtt::connectAndSubscribe(...)` work as well.
