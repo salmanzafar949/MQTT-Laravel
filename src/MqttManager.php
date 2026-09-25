@@ -3,6 +3,7 @@
 namespace Salman\Mqtt;
 
 use InvalidArgumentException;
+use Salman\Mqtt\Jobs\PublishMqttMessage;
 use Salman\Mqtt\MqttClass\Mqtt;
 use Salman\Mqtt\Testing\MqttFake;
 
@@ -31,7 +32,7 @@ class MqttManager
     public function connection($name = null)
     {
         if ($this->fake !== null) {
-            return $this->fake;
+            return $this->fake->connection($name);
         }
 
         $name = $name ?: $this->getDefaultConnection();
@@ -51,6 +52,37 @@ class MqttManager
     public function fake()
     {
         return $this->fake = new MqttFake();
+    }
+
+    /**
+     * Publish a message asynchronously by dispatching a queued job, so the
+     * caller doesn't block on broker I/O.
+     *
+     * @param  string  $topic
+     * @param  string  $message
+     * @param  string|int|null  $clientId
+     * @param  int|null  $retain
+     * @param  string|null  $connection  the MQTT connection name
+     * @return mixed  the queued job's PendingDispatch (or the fake's record)
+     */
+    public function queue($topic, $message, $clientId = null, $retain = null, $connection = null)
+    {
+        if ($this->fake !== null) {
+            return $this->fake->queue($topic, $message, $clientId, $retain, $connection);
+        }
+
+        $job = new PublishMqttMessage($topic, $message, $clientId, $retain, $connection);
+
+        if (function_exists('config')) {
+            if ($queueName = config('mqtt.queue.name')) {
+                $job->onQueue($queueName);
+            }
+            if ($queueConnection = config('mqtt.queue.connection')) {
+                $job->onConnection($queueConnection);
+            }
+        }
+
+        return dispatch($job);
     }
 
     /**

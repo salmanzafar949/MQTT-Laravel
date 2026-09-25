@@ -27,6 +27,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Queued publishing
+    |--------------------------------------------------------------------------
+    | Mqtt::queue(...) dispatches a job so callers don't block on broker I/O.
+    | Optionally pin those jobs to a specific queue connection and/or queue
+    | name; null uses your app's defaults.
+    */
+
+    'queue' => [
+        'connection' => env('MQTT_QUEUE_CONNECTION', null),
+        'name'       => env('MQTT_QUEUE', null),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | TLS / SSL
     |--------------------------------------------------------------------------
     | Provide a CA file to connect over tls://. The options below are forwarded
