@@ -38,20 +38,25 @@ class PublishMqttMessage implements ShouldQueue
     /** @var string|null */
     public $mqttConnection;
 
+    /** @var int|null */
+    public $qos;
+
     /**
      * @param  string  $topic
      * @param  string  $message
      * @param  string|int|null  $clientId
      * @param  int|null  $retain
      * @param  string|null  $connection  the MQTT connection name
+     * @param  int|null  $qos
      */
-    public function __construct($topic, $message, $clientId = null, $retain = null, $connection = null)
+    public function __construct($topic, $message, $clientId = null, $retain = null, $connection = null, $qos = null)
     {
         $this->topic = $topic;
         $this->message = $message;
         $this->clientId = $clientId;
         $this->retain = $retain;
         $this->mqttConnection = $connection;
+        $this->qos = $qos;
     }
 
     /**
@@ -60,6 +65,6 @@ class PublishMqttMessage implements ShouldQueue
     public function handle(MqttManager $mqtt)
     {
         return $mqtt->connection($this->mqttConnection)
-            ->ConnectAndPublish($this->topic, $this->message, $this->clientId, $this->retain);
+            ->ConnectAndPublish($this->topic, $this->message, $this->clientId, $this->retain, $this->qos);
     }
 }

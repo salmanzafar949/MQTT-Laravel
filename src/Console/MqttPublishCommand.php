@@ -13,7 +13,8 @@ class MqttPublishCommand extends Command
         {message : The message payload}
         {--connection= : The MQTT connection to use}
         {--client-id= : An explicit client id}
-        {--retain : Set the retain flag}';
+        {--retain : Set the retain flag}
+        {--qos= : The quality of service level (0, 1 or 2)}';
 
     /** @var string */
     protected $description = 'Publish a message to an MQTT topic';
@@ -24,12 +25,14 @@ class MqttPublishCommand extends Command
     public function handle(MqttManager $manager)
     {
         $topic = $this->argument('topic');
+        $qos = $this->option('qos');
 
         $ok = $manager->connection($this->option('connection'))->ConnectAndPublish(
             $topic,
             $this->argument('message'),
             $this->option('client-id'),
-            $this->option('retain') ? 1 : null
+            $this->option('retain') ? 1 : null,
+            $qos === null ? null : (int) $qos
         );
 
         if ($ok) {

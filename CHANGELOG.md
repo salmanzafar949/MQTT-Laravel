@@ -5,6 +5,34 @@ All notable changes to `salmanzafar/laravel-mqtt` will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-11-22
+
+The built-in protocol code (a fork of the unmaintained `bluerhinos/phpMQTT`) is
+replaced by the maintained [`php-mqtt/client`](https://github.com/php-mqtt/client).
+The Laravel-facing API is unchanged. See [docs/UPGRADING-v4.md](docs/UPGRADING-v4.md).
+v3.x remains available, unchanged, for PHP 7.2+.
+
+### Added
+- **Real QoS 1 and 2**: publishes wait for the broker's acknowledgement. QoS can
+  be set per call (`ConnectAndPublish`, `ConnectAndSubscribe`, `queue`) or per
+  connection, and with `--qos` on both Artisan commands.
+- **MQTT 3.1.1** (new default) alongside 3.1, set with `protocol`.
+- **Last Will and Testament** (`last_will` config).
+- **Automatic reconnects** (`reconnect` config) and a `clean_session` option.
+- **`Mqtt::interrupt()`** to stop a subscribe loop and disconnect cleanly;
+  `mqtt:subscribe` now uses it on SIGINT/SIGTERM instead of `exit()`.
+- `tls.enabled` to use TLS with a public-CA broker without a CA file.
+- Real-broker integration tests for QoS 1/2 delivery and Last Will.
+
+### Changed
+- **Requires PHP 8.0+.**
+- `debug` now logs every MQTT packet through the Laravel logger; errors are
+  still logged when it's off.
+
+### Removed
+- `Salman\Mqtt\MqttClass\MqttService`, the legacy hand-written protocol client.
+- `tls.ciphers` (not supported by `php-mqtt/client`).
+
 ## [3.3.0] - 2026-09-25
 
 ### Added

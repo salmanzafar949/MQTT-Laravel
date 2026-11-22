@@ -12,8 +12,9 @@ use Salman\Mqtt\Testing\MqttFake;
  * connection, so that `Mqtt::ConnectAndPublish(...)` keeps working while
  * `Mqtt::connection('sensors')->...` targets an additional broker.
  *
- * @method bool ConnectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null)
- * @method bool ConnectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null)
+ * @method bool ConnectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null, int|null $qos = null)
+ * @method bool ConnectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null, int|null $qos = null)
+ * @method void interrupt()
  */
 class MqttManager
 {
@@ -63,15 +64,16 @@ class MqttManager
      * @param  string|int|null  $clientId
      * @param  int|null  $retain
      * @param  string|null  $connection  the MQTT connection name
+     * @param  int|null  $qos
      * @return mixed  the queued job's PendingDispatch (or the fake's record)
      */
-    public function queue($topic, $message, $clientId = null, $retain = null, $connection = null)
+    public function queue($topic, $message, $clientId = null, $retain = null, $connection = null, $qos = null)
     {
         if ($this->fake !== null) {
-            return $this->fake->queue($topic, $message, $clientId, $retain, $connection);
+            return $this->fake->queue($topic, $message, $clientId, $retain, $connection, $qos);
         }
 
-        $job = new PublishMqttMessage($topic, $message, $clientId, $retain, $connection);
+        $job = new PublishMqttMessage($topic, $message, $clientId, $retain, $connection, $qos);
 
         if (function_exists('config')) {
             if ($queueName = config('mqtt.queue.name')) {

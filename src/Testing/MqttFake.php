@@ -29,15 +29,17 @@ class MqttFake
      * @param  string  $msg
      * @param  string|int|null  $client_id
      * @param  int|null  $retain
+     * @param  int|null  $qos
      * @return bool
      */
-    public function ConnectAndPublish($topic, $msg, $client_id = null, $retain = null)
+    public function ConnectAndPublish($topic, $msg, $client_id = null, $retain = null, $qos = null)
     {
         $this->published[] = [
             'topic' => $topic,
             'message' => $msg,
             'client_id' => $client_id,
             'retain' => $retain,
+            'qos' => $qos,
             'connection' => $this->connection,
         ];
 
@@ -50,16 +52,28 @@ class MqttFake
      * @param  string|array  $topic
      * @param  callable  $proc
      * @param  string|int|null  $client_id
+     * @param  int|null  $qos
      * @return bool
      */
-    public function ConnectAndSubscribe($topic, $proc, $client_id = null)
+    public function ConnectAndSubscribe($topic, $proc, $client_id = null, $qos = null)
     {
         $this->subscriptions[] = [
             'topics' => is_array($topic) ? array_values($topic) : [$topic],
+            'qos' => $qos,
             'connection' => $this->connection,
         ];
 
         return true;
+    }
+
+    /**
+     * Fakes never run a subscribe loop, so there is nothing to interrupt.
+     *
+     * @return void
+     */
+    public function interrupt()
+    {
+        //
     }
 
     /**
@@ -70,15 +84,17 @@ class MqttFake
      * @param  string|int|null  $clientId
      * @param  int|null  $retain
      * @param  string|null  $connection
+     * @param  int|null  $qos
      * @return bool
      */
-    public function queue($topic, $message, $clientId = null, $retain = null, $connection = null)
+    public function queue($topic, $message, $clientId = null, $retain = null, $connection = null, $qos = null)
     {
         $this->queued[] = [
             'topic' => $topic,
             'message' => $message,
             'client_id' => $clientId,
             'retain' => $retain,
+            'qos' => $qos,
             'connection' => $connection ?: $this->connection,
         ];
 

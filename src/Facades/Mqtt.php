@@ -12,11 +12,12 @@ namespace Salman\Mqtt\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static bool ConnectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null)
- * @method static bool ConnectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null)
- * @method static bool connectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null)
- * @method static bool connectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null)
- * @method static mixed queue(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null, string|null $connection = null)
+ * @method static bool ConnectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null, int|null $qos = null)
+ * @method static bool ConnectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null, int|null $qos = null)
+ * @method static bool connectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null, int|null $qos = null)
+ * @method static bool connectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null, int|null $qos = null)
+ * @method static void interrupt()
+ * @method static mixed queue(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null, string|null $connection = null, int|null $qos = null)
  * @method static \Salman\Mqtt\MqttClass\Mqtt connection(string|null $name = null)
  * @method static \Salman\Mqtt\Testing\MqttFake fake()
  *

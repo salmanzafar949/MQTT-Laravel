@@ -7,9 +7,13 @@
 
 A simple Laravel library to connect, publish and subscribe to an MQTT broker.
 
-Based on [bluerhinos/phpMQTT](https://github.com/bluerhinos/phpMQTT). A working
-example application is available in the
+Built on [php-mqtt/client](https://github.com/php-mqtt/client) (MQTT 3.1.1 and
+3.1, real QoS 0/1/2, Last Will, automatic reconnects). A working example
+application is available in the
 [Laravel-Mqtt-Example](https://github.com/salmanzafar949/Laravel-Mqtt-Example) repo.
+
+> **Upgrading from v3?** See [docs/UPGRADING-v4.md](docs/UPGRADING-v4.md). v3.x is
+> still available unchanged for PHP 7.2+.
 
 ## Table of contents
 
@@ -21,6 +25,8 @@ example application is available in the
   - [Subscribing](#subscribing)
   - [Multiple topics](#subscribing-to-multiple-topics)
   - [Helper functions](#helper-functions)
+- [Quality of Service](#quality-of-service)
+- [Last Will and reconnects](#last-will-and-reconnects)
 - [Queued publishing](#queued-publishing)
 - [Artisan commands](#artisan-commands)
 - [Multiple connections](#multiple-connections)
@@ -39,12 +45,14 @@ example application is available in the
 
 ## Compatibility
 
-| PHP       | Laravel     |
-|-----------|-------------|
-| 7.2 – 8.4 | 5.5 – 12.x  |
+| Package | PHP       | Laravel    | Protocol engine                       |
+|---------|-----------|------------|---------------------------------------|
+| **4.x** | 8.0+      | 8 – 13     | `php-mqtt/client` (MQTT 3.1.1 / 3.1)  |
+| 3.x     | 7.2 – 8.4 | 5.5 – 12.x | built-in legacy client (MQTT 3.1)     |
 
 The package uses Laravel's package auto-discovery, so it works out of the box
-across all of the above versions.
+across all of the above versions. v3.x stays published unchanged; Composer keeps
+you on it as long as your constraint is `^3.0`.
 
 ## Installation
 
@@ -52,18 +60,13 @@ across all of the above versions.
 composer require salmanzafar/laravel-mqtt
 ```
 
-The service provider and `Mqtt` facade are registered automatically on
-Laravel 5.5+. **Only** if you are on Laravel < 5.5, register them manually in
-`config/app.php`:
+The service provider and `Mqtt` facade are registered automatically through
+Laravel's package auto-discovery.
 
-```php
-'providers' => [
-    Salman\Mqtt\MqttServiceProvider::class,
-],
+On PHP 7.x, stay on the 3.x line instead:
 
-'aliases' => [
-    'Mqtt' => Salman\Mqtt\Facades\Mqtt::class,
-],
+```bash
+composer require salmanzafar/laravel-mqtt:^3.0
 ```
 
 ## Configuration
@@ -84,20 +87,35 @@ return [
     'port'       => env('MQTT_PORT', '1883'),
     'timeout'    => (int) env('MQTT_TIMEOUT', 10),
     'keepalive'  => (int) env('MQTT_KEEPALIVE', 10),
+    'protocol'   => env('MQTT_PROTOCOL', '3.1.1'),
     'debug'      => (bool) env('MQTT_DEBUG', false),
-    'qos'        => env('MQTT_QOS', 0),
-    'retain'     => env('MQTT_RETAIN', 0),
+    'qos'        => (int) env('MQTT_QOS', 0),
+    'retain'     => (int) env('MQTT_RETAIN', 0),
+    'clean_session' => (bool) env('MQTT_CLEAN_SESSION', true),
     'exceptions' => (bool) env('MQTT_EXCEPTIONS', false),
+
+    'last_will' => [
+        'topic'   => env('MQTT_LAST_WILL_TOPIC', null),
+        'message' => env('MQTT_LAST_WILL_MESSAGE', ''),
+        'qos'     => (int) env('MQTT_LAST_WILL_QOS', 0),
+        'retain'  => (bool) env('MQTT_LAST_WILL_RETAIN', false),
+    ],
+
+    'reconnect' => [
+        'enabled'      => (bool) env('MQTT_RECONNECT', false),
+        'max_attempts' => (int) env('MQTT_RECONNECT_MAX_ATTEMPTS', 3),
+        'delay'        => (int) env('MQTT_RECONNECT_DELAY', 1000), // ms
+    ],
 
     // TLS / SSL
     'certfile'   => env('MQTT_CERT_FILE', ''),
     'localcert'  => env('MQTT_LOCAL_CERT', ''),
     'localpk'    => env('MQTT_LOCAL_PK', ''),
     'tls' => [
+        'enabled'           => (bool) env('MQTT_TLS', false),
         'verify_peer'       => (bool) env('MQTT_TLS_VERIFY_PEER', true),
         'verify_peer_name'  => (bool) env('MQTT_TLS_VERIFY_PEER_NAME', true),
         'allow_self_signed' => (bool) env('MQTT_TLS_ALLOW_SELF_SIGNED', false),
-        'ciphers'           => env('MQTT_TLS_CIPHERS', null),
         'passphrase'        => env('MQTT_TLS_PASSPHRASE', null),
     ],
 ];
@@ -111,14 +129,18 @@ return [
 | `password`   | `MQTT_PASSWORD`        | `''`        | Password, if the broker requires authentication.        |
 | `timeout`    | `MQTT_TIMEOUT`         | `10`        | Connection timeout in seconds.                          |
 | `keepalive`  | `MQTT_KEEPALIVE`       | `10`        | Seconds between keep-alive pings.                       |
-| `debug`      | `MQTT_DEBUG`           | `false`     | Enable debug logging.                                   |
-| `qos`        | `MQTT_QOS`             | `0`         | Quality of Service level.                               |
-| `retain`     | `MQTT_RETAIN`          | `0`         | Retain flag (`0` or `1`).                               |
+| `protocol`   | `MQTT_PROTOCOL`        | `3.1.1`     | MQTT version: `3.1.1` or `3.1`.                         |
+| `debug`      | `MQTT_DEBUG`           | `false`     | Log every MQTT packet through the Laravel logger.       |
+| `qos`        | `MQTT_QOS`             | `0`         | Default Quality of Service level (0, 1 or 2).           |
+| `retain`     | `MQTT_RETAIN`          | `0`         | Default retain flag (`0` or `1`).                       |
+| `clean_session` | `MQTT_CLEAN_SESSION` | `true`     | Start with a clean session (forced off with reconnects). |
 | `exceptions` | `MQTT_EXCEPTIONS`      | `false`     | Throw on failure instead of returning `false`.          |
-| `tls`        | `MQTT_TLS_*`           | see above   | SSL stream-context options used when a CA file is set.  |
+| `last_will`  | `MQTT_LAST_WILL_*`     | off         | Message the broker publishes if the client drops.       |
+| `reconnect`  | `MQTT_RECONNECT*`      | off         | Reconnect automatically when the connection drops.      |
+| `tls`        | `MQTT_TLS*`            | see above   | TLS options, used when a CA file is set or `tls.enabled`. |
 
-When running inside Laravel, debug and error messages are written through the
-framework logger.
+Errors are always written through the framework logger; `debug` adds a log line
+for every packet.
 
 ## Usage
 
@@ -175,7 +197,8 @@ Mqtt::ConnectAndSubscribe($topic, function ($topic, $message) {
 ```
 
 > Subscribing blocks the process while it listens, so run it from an Artisan
-> command / queue worker rather than an HTTP request.
+> command / queue worker rather than an HTTP request. Call `Mqtt::interrupt()`
+> (for example from a signal handler) to stop the loop and disconnect cleanly.
 
 ### Subscribing to multiple topics
 
@@ -199,6 +222,44 @@ connectToPublish($topic, $message, $clientId = null, $retain = null);
 connectToSubscribe($topic, $clientId = null);
 ```
 
+## Quality of Service
+
+QoS 0, 1 and 2 are supported. Set a connection default with `qos`, or pass it
+per call as the last argument. At QoS 1 and 2 the publish waits for the broker's
+acknowledgement before disconnecting.
+
+```php
+// $topic, $message, $clientId, $retain, $qos
+Mqtt::ConnectAndPublish('orders/created', $json, null, null, 1);
+
+// $topic, $callback, $clientId, $qos
+Mqtt::ConnectAndSubscribe('orders/#', $handler, null, 2);
+```
+
+## Last Will and reconnects
+
+**Last Will and Testament** lets the broker announce on a device's behalf that
+it went offline when its connection drops without a clean disconnect:
+
+```dotenv
+MQTT_LAST_WILL_TOPIC=devices/42/status
+MQTT_LAST_WILL_MESSAGE=offline
+MQTT_LAST_WILL_QOS=1
+MQTT_LAST_WILL_RETAIN=true
+```
+
+**Automatic reconnects** keep long-running subscribers alive through network
+blips:
+
+```dotenv
+MQTT_RECONNECT=true
+MQTT_RECONNECT_MAX_ATTEMPTS=5
+MQTT_RECONNECT_DELAY=1000
+```
+
+`php-mqtt/client` can't combine automatic reconnects with a clean session, so
+`clean_session` is turned off while reconnects are enabled.
+
 ## Queued publishing
 
 Publishing opens a socket to the broker, which you usually don't want to do
@@ -207,7 +268,8 @@ request returns immediately and a queue worker does the publish:
 
 ```php
 Mqtt::queue('home/light', 'on');
-Mqtt::queue('sensors/temp', '21.5', $clientId = null, $retain = 1, $connection = 'sensors');
+// $topic, $message, $clientId, $retain, $connection, $qos
+Mqtt::queue('sensors/temp', '21.5', null, 1, 'sensors', 1);
 ```
 
 Make sure a queue worker is running (`php artisan queue:work`). Optionally pin
@@ -228,11 +290,11 @@ command:
 ```bash
 # Publish a message
 php artisan mqtt:publish home/light on
-php artisan mqtt:publish home/light on --retain --connection=sensors
+php artisan mqtt:publish home/light on --retain --qos=1 --connection=sensors
 
-# Subscribe to one or more topics (Ctrl+C to stop)
+# Subscribe to one or more topics (Ctrl+C / SIGTERM stops it and disconnects cleanly)
 php artisan mqtt:subscribe home/light
-php artisan mqtt:subscribe "sensors/#" "home/+/status" --connection=sensors
+php artisan mqtt:subscribe "sensors/#" "home/+/status" --qos=1 --connection=sensors
 ```
 
 ## Multiple connections
@@ -309,6 +371,9 @@ MQTT_LOCAL_CERT=/path/to/client.crt
 MQTT_LOCAL_PK=/path/to/client.key
 ```
 
+For a broker with a certificate from a public CA, you don't need a CA file at
+all. Turn TLS on with `MQTT_TLS=true` and the system trust store is used.
+
 Fine-tune verification through the `mqtt.tls` options (for example set
 `MQTT_TLS_ALLOW_SELF_SIGNED=true` for a self-signed broker in development). Keep
 the `verify_peer` options enabled in production.
@@ -368,9 +433,10 @@ Mqtt::assertNothingQueued();
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `ConnectAndPublish(string $topic, string $message, string\|int $clientId = null, int $retain = null)` | `bool` | Connect, publish a message and disconnect. |
-| `ConnectAndSubscribe(string\|array $topic, callable $callback, string\|int $clientId = null)` | `bool` | Connect and listen for messages on one or more topics. |
-| `queue(string $topic, string $message, string\|int $clientId = null, int $retain = null, string $connection = null)` | `PendingDispatch` | Publish asynchronously via a queued job. |
+| `ConnectAndPublish(string $topic, string $message, string\|int $clientId = null, int $retain = null, int $qos = null)` | `bool` | Connect, publish a message and disconnect. |
+| `ConnectAndSubscribe(string\|array $topic, callable $callback, string\|int $clientId = null, int $qos = null)` | `bool` | Connect and listen for messages on one or more topics until interrupted. |
+| `interrupt()` | `void` | Stop a running subscribe loop and disconnect cleanly. |
+| `queue(string $topic, string $message, string\|int $clientId = null, int $retain = null, string $connection = null, int $qos = null)` | `PendingDispatch` | Publish asynchronously via a queued job. |
 | `connection(string $name = null)` | `Mqtt` | Get a specific broker connection. |
 | `fake()` | `MqttFake` | Swap in a test double that records published/queued messages. |
 
@@ -398,11 +464,10 @@ workflow; to run them locally add them once with
 
 ## Roadmap
 
-The wire protocol is still the legacy phpMQTT 3.1 implementation. The next major
-version (v4) will move it onto [`php-mqtt/client`](https://github.com/php-mqtt/client)
-for **MQTT 3.1.1 / 5.0**, real **QoS 1/2**, **Last Will & Testament** and
-**message expiry**, while keeping the Laravel-facing API. See the
-[v4 migration plan](docs/UPGRADING-v4.md).
+- **MQTT 5** (message expiry, user properties, shared subscriptions) once
+  `php-mqtt/client` supports it. v2 implements MQTT 3.1 and 3.1.1 only.
+- A long-running `mqtt:listen` worker that dispatches `MqttMessageReceived`
+  events, built on the interruptible loop and automatic reconnects added in v4.
 
 ## Releasing
 
