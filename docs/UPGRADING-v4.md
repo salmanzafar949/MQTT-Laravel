@@ -13,7 +13,8 @@ on `^3.0` and nothing changes for you.
 
 | | v3.x | v4.x |
 |---|---|---|
-| PHP | 7.2 – 8.4 | **8.0+** |
+| PHP | 7.2 – 8.4 | **8.0+** (CI-tested on 8.2 – 8.5) |
+| Laravel (CI-tested) | 9 – 12 | **12 – 13** (9 – 11 are end-of-life and no longer tested) |
 | Protocol engine | built-in fork of bluerhinos/phpMQTT | `php-mqtt/client` ^2.0 |
 | MQTT versions | 3.1 | **3.1.1** (default) and 3.1 |
 

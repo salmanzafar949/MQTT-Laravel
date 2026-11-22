@@ -47,12 +47,16 @@ application is available in the
 
 | Package | PHP       | Laravel    | Protocol engine                       |
 |---------|-----------|------------|---------------------------------------|
-| **4.x** | 8.0+      | 8 – 13     | `php-mqtt/client` (MQTT 3.1.1 / 3.1)  |
+| **4.x** | 8.0+      | 12 – 13 (tested) | `php-mqtt/client` (MQTT 3.1.1 / 3.1)  |
 | 3.x     | 7.2 – 8.4 | 5.5 – 12.x | built-in legacy client (MQTT 3.1)     |
 
-The package uses Laravel's package auto-discovery, so it works out of the box
-across all of the above versions. v3.x stays published unchanged; Composer keeps
-you on it as long as your constraint is `^3.0`.
+v4 is tested in CI on Laravel 12 and 13 with PHP 8.2 – 8.5. It doesn't depend
+on a specific Laravel version, so older releases may work, but Laravel 9 – 11 are
+end-of-life with unpatched security advisories and aren't tested.
+
+The package uses Laravel's package auto-discovery, so it works out of the box.
+v3.x stays published unchanged; Composer keeps you on it as long as your
+constraint is `^3.0`.
 
 ## Installation
 

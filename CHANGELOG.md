@@ -28,6 +28,9 @@ v3.x remains available, unchanged, for PHP 7.2+.
 - **Requires PHP 8.0+.**
 - `debug` now logs every MQTT packet through the Laravel logger; errors are
   still logged when it's off.
+- CI now tests Laravel 12 and 13 on PHP 8.2 – 8.5. Laravel 9 – 11 are no longer
+  tested: they're end-of-life with unpatched security advisories, and Composer
+  refuses to install them.
 
 ### Removed
 - `Salman\Mqtt\MqttClass\MqttService`, the legacy hand-written protocol client.
