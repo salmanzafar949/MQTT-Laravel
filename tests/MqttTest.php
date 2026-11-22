@@ -433,4 +433,28 @@ class MqttTest extends TestCase
         $this->assertFalse($result);
         $this->assertLessThan(3, $elapsed);
     }
+
+    public function test_duplicate_filters_are_subscribed_once()
+    {
+        $this->assertSame(['a/b', 'c/#'], \Salman\Mqtt\Support\Arguments::filters(['a/b', 'c/#', 'a/b']));
+    }
+
+    public function test_a_connection_failure_is_logged_once()
+    {
+        Log::shouldReceive('log')->once()->withArgs(function ($level) {
+            return $level === 'error';
+        });
+
+        (new Mqtt(['host' => '127.0.0.1', 'port' => 1, 'timeout' => 1]))->ConnectAndPublish('t', 'm');
+    }
+
+    public function test_an_unknown_default_connection_throws()
+    {
+        config(['mqtt.default' => 'nope']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('MQTT_CONNECTION');
+
+        new Mqtt();
+    }
 }

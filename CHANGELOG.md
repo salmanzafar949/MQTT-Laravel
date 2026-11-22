@@ -82,6 +82,12 @@ v3.x remains available, unchanged, for PHP 7.2+.
 - `Mqtt::fake()` rejects unconfigured connection names; calling an assertion
   without `fake()` explains what to do.
 - `timeout` accepts fractions of a second.
+- Reconnects back off when the connection drops again right away (e.g. two
+  processes sharing a client id) instead of reconnecting in a tight loop.
+- `interrupt()` also stops a subscriber that is still connecting.
+- Each failure is logged once.
+- An `MQTT_CONNECTION` that names no defined connection throws.
+- Duplicate topic filters are subscribed once.
 - The Composer dist no longer ships tests and development config.
 - CI now tests Laravel 12 and 13 on PHP 8.2 – 8.5. Laravel 9 – 11 are no longer
   tested: they're end-of-life with unpatched security advisories, and Composer

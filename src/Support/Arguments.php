@@ -42,7 +42,8 @@ class Arguments
      */
     public static function filters($topics)
     {
-        $filters = array_values((array) $topics);
+        // A repeated filter is one subscription.
+        $filters = array_values(array_unique((array) $topics, SORT_REGULAR));
 
         if ($filters === []) {
             throw new InvalidArgumentException('Subscribe to at least one MQTT topic.');

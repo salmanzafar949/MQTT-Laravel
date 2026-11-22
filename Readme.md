@@ -89,7 +89,7 @@ return [
     'password'   => env('MQTT_PASSWORD', ''),
     'username'   => env('MQTT_USERNAME', ''),
     'port'       => env('MQTT_PORT', '1883'),
-    'timeout'    => (int) env('MQTT_TIMEOUT', 10),
+    'timeout'    => (float) env('MQTT_TIMEOUT', 10),
     'keepalive'  => (int) env('MQTT_KEEPALIVE', 10),
     'protocol'   => env('MQTT_PROTOCOL', '3.1.1'),
     'debug'      => (bool) env('MQTT_DEBUG', false),
@@ -308,8 +308,10 @@ Mqtt::ConnectAndSubscribe('orders/#', $handler, 'orders-worker-1', 1);
 ```
 
 Publishes and subscribers without a client id always use a clean session, so
-they never leave sessions behind on the broker. With reconnects enabled and no
-client id, the session is removed when the subscriber stops cleanly.
+they never leave sessions behind on the broker. Reconnects need a persistent
+session, so with `MQTT_RECONNECT=true` **pass a fixed client id** (unique per
+process): without one, a session is removed when the subscriber stops cleanly,
+but one is left behind each time the process is killed or gives up.
 
 ## Queued publishing
 
@@ -376,7 +378,9 @@ Mqtt::ConnectAndPublish('home/light', 'on'); // default connection
 ```
 
 To make a named connection the default, set `MQTT_CONNECTION=sensors`. That
-applies to the facade, `new Mqtt()` and the helper functions alike.
+applies to the facade, `new Mqtt()` and the helper functions alike. It must be
+`default` or the name of a defined connection; anything else throws an
+`InvalidArgumentException` instead of silently using the top-level settings.
 `Mqtt::interrupt()` stops subscribe loops on every connection.
 
 ## Events

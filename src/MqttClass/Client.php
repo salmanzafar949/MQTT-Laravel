@@ -36,6 +36,9 @@ class Client extends MqttClient
     /** @var LoggerInterface|null */
     protected $log = null;
 
+    /** @var float|null when the last reconnect succeeded */
+    protected $reconnectedAt = null;
+
     public function __construct(
         string $host,
         int $port = 1883,
@@ -121,6 +124,14 @@ class Client extends MqttClient
         $attempts = max(1, $settings->getMaxReconnectAttempts());
         $delay = max(0, $settings->getDelayBetweenReconnectAttempts());
 
+        // Dropped again right after reconnecting (e.g. another process uses the
+        // same client id and the broker keeps kicking one of them): back off
+        // instead of reconnecting in a tight loop.
+        if ($this->reconnectedAt !== null && microtime(true) - $this->reconnectedAt < 5) {
+            $this->warn('The connection dropped right after reconnecting. Is another client using the same client id?');
+            $this->pause(max(1.0, $delay / 1000));
+        }
+
         for ($i = 1; $i <= $attempts; $i++) {
             if ($this->stopped) {
                 throw new Interrupted();
@@ -133,6 +144,7 @@ class Client extends MqttClient
 
             try {
                 $this->connectInternal(false, true);
+                $this->reconnectedAt = microtime(true);
                 $this->warn('Reconnected to the broker.');
 
                 return;
@@ -164,6 +176,10 @@ class Client extends MqttClient
         $result = '';
 
         while (strlen($result) < $limit) {
+            if ($this->stopped) {
+                throw new Interrupted();
+            }
+
             // Read whatever is already buffered first: stream_select() can't see
             // data that PHP's stream layer (e.g. TLS) has already pulled in.
             $chunk = parent::readFromSocket($limit - strlen($result), true);

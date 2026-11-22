@@ -38,6 +38,9 @@ class Logger extends AbstractLogger
     /** @var array<int, string> */
     protected $secrets;
 
+    /** @var int number of error-or-worse lines logged so far */
+    protected $errors = 0;
+
     /**
      * @param  string  $connection
      * @param  bool  $debug
@@ -63,6 +66,10 @@ class Logger extends AbstractLogger
             return;
         }
 
+        if (self::LEVELS[$level] <= self::LEVELS['error']) {
+            $this->errors++;
+        }
+
         // php-mqtt/client already prefixes its lines with "MQTT [host:port] [client id]".
         $message = (string) $message;
         $message = strncmp($message, 'MQTT [', 6) === 0 ? substr($message, 5) : $message;
@@ -78,6 +85,16 @@ class Logger extends AbstractLogger
         }
 
         error_log($text);
+    }
+
+    /**
+     * How many error-or-worse lines have been logged.
+     *
+     * @return int
+     */
+    public function errorCount()
+    {
+        return $this->errors;
     }
 
     /**

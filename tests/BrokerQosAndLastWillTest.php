@@ -262,4 +262,27 @@ class BrokerQosAndLastWillTest extends TestCase
         $this->assertCount(10, $latencies);
         $this->assertLessThan(0.03, $latencies[4], 'Median receive latency should be a few milliseconds.');
     }
+
+    public function test_duplicate_filters_still_subscribe()
+    {
+        $topic = 'laravel-mqtt/dup/'.uniqid();
+
+        $publisher = pcntl_fork();
+        if ($publisher === 0) {
+            usleep(800000);
+            (new Mqtt($this->broker()))->ConnectAndPublish($topic, 'once');
+            exit(0);
+        }
+
+        $received = [];
+        $mqtt = new Mqtt($this->broker());
+        $result = $mqtt->ConnectAndSubscribe([$topic, $topic], function ($t, $m) use (&$received, $mqtt) {
+            $received[] = $m;
+            $mqtt->interrupt();
+        });
+        pcntl_waitpid($publisher, $status);
+
+        $this->assertTrue($result);
+        $this->assertSame(['once'], $received);
+    }
 }

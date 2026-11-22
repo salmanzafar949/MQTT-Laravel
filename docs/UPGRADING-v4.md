@@ -97,6 +97,12 @@ options, compare it with the new default (or re-publish with
 - **Topic filters are validated**: `+` must fill a whole level and `#` must be
   the last one; topics must be valid UTF-8 and at most 65,535 bytes.
 - **`timeout` is a float** (e.g. `0.5`) and also bounds the wait for SUBACK.
+  If you published the config before, change its cast from `(int)` to
+  `(float)` to use fractions: `'timeout' => (float) env('MQTT_TIMEOUT', 10)`.
+  With `(int)`, `0.5` becomes `0`, which falls back to 10 seconds.
+- **`MQTT_CONNECTION` must be `default` or a defined connection name.**
+  Anything else now throws instead of silently using the top-level settings.
+- **Duplicate topic filters** in one subscribe call are subscribed once.
 - **`Mqtt::fake()` rejects unconfigured connection names**, like the real
   client, so a typo fails in tests too.
 

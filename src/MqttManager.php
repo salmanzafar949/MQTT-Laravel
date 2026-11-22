@@ -126,8 +126,8 @@ class MqttManager
      *
      * Connections live under `mqtt.connections.<name>` and inherit the flat
      * top-level `mqtt.*` settings, nested arrays (tls, last_will, reconnect)
-     * included. "default" (or whatever `mqtt.default` names, if it isn't
-     * defined under `connections`) is the flat config itself.
+     * included. "default" is the flat config itself; `mqtt.default` must be
+     * "default" or name a defined connection.
      *
      * @param  string  $name
      * @return array<string, mixed>
@@ -142,11 +142,13 @@ class MqttManager
             return array_replace_recursive($base, $connections[$name]);
         }
 
-        if ($name === 'default' || $name === $this->getDefaultConnection()) {
+        if ($name === 'default') {
             return $base;
         }
 
-        throw new InvalidArgumentException("MQTT connection [{$name}] is not configured.");
+        $hint = $name === $this->getDefaultConnection() ? ' Check MQTT_CONNECTION (mqtt.default).' : '';
+
+        throw new InvalidArgumentException("MQTT connection [{$name}] is not configured.{$hint}");
     }
 
     /**

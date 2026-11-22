@@ -255,10 +255,16 @@ class Mqtt
      */
     protected function attempt(callable $operation)
     {
+        $errorsBefore = $this->logger()->errorCount();
+
         try {
             return $operation();
         } catch (MqttClientException $e) {
-            $this->report($e);
+            // php-mqtt/client usually logs the underlying error itself; only add
+            // our own line when it didn't, so each failure is logged once.
+            if ($this->logger()->errorCount() === $errorsBefore) {
+                $this->report($e);
+            }
 
             if ($this->config['exceptions'] ?? false) {
                 throw new MqttConnectionException($e->getMessage(), (int) $e->getCode(), $e);
