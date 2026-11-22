@@ -108,4 +108,31 @@ class MqttFakeTest extends TestCase
 
         Mqtt::assertSubscribed('b/#');
     }
+
+    public function test_the_fake_rejects_unknown_connection_names()
+    {
+        Mqtt::fake();
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        Mqtt::connection('typo')->ConnectAndPublish('t', 'm');
+    }
+
+    public function test_assertions_without_fake_explain_what_to_do()
+    {
+        $this->expectException(\BadMethodCallException::class);
+        $this->expectExceptionMessage('Mqtt::fake()');
+
+        Mqtt::assertPublished('t');
+    }
+
+    public function test_the_fake_records_the_default_connection_name_for_new_mqtt()
+    {
+        config(['mqtt.default' => 'second', 'mqtt.connections.second' => ['host' => 'second.local']]);
+        $fake = Mqtt::fake();
+
+        connectToPublish('t', 'm');
+
+        $this->assertSame('second', $fake->published()[0]['connection']);
+    }
 }

@@ -29,6 +29,8 @@ class Arguments
             throw new InvalidArgumentException("The MQTT topic [{$topic}] can't contain the wildcards + or # when publishing.");
         }
 
+        static::assertEncodable($topic);
+
         return $topic;
     }
 
@@ -50,9 +52,39 @@ class Arguments
             if (! is_string($filter) || $filter === '' || strpos($filter, "\0") !== false) {
                 throw new InvalidArgumentException('MQTT topic filters must be non-empty strings.');
             }
+
+            static::assertEncodable($filter);
+
+            $levels = explode('/', $filter);
+            foreach ($levels as $i => $level) {
+                $wildcard = strpbrk($level, '+#') !== false;
+
+                if ($wildcard && ! ($level === '+' || ($level === '#' && $i === count($levels) - 1))) {
+                    throw new InvalidArgumentException(
+                        "Invalid MQTT topic filter [{$filter}]: + must fill a whole level and # must be the last level."
+                    );
+                }
+            }
         }
 
         return $filters;
+    }
+
+    /**
+     * MQTT topics are UTF-8 strings of at most 65,535 bytes.
+     *
+     * @param  string  $topic
+     * @return void
+     */
+    protected static function assertEncodable($topic)
+    {
+        if (strlen($topic) > 65535) {
+            throw new InvalidArgumentException('An MQTT topic can be at most 65,535 bytes long.');
+        }
+
+        if (preg_match('//u', $topic) !== 1) {
+            throw new InvalidArgumentException('An MQTT topic must be valid UTF-8.');
+        }
     }
 
     /**

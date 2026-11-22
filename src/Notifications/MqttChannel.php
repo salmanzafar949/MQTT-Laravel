@@ -4,7 +4,9 @@ namespace Salman\Mqtt\Notifications;
 
 use Illuminate\Notifications\Notification;
 use RuntimeException;
+use Salman\Mqtt\Exceptions\MqttConnectionException;
 use Salman\Mqtt\MqttManager;
+use Salman\Mqtt\Support\Arguments;
 
 /**
  * Notification channel that publishes notifications over MQTT.
@@ -30,6 +32,9 @@ class MqttChannel
      * @param  mixed  $notifiable
      * @param  Notification  $notification
      * @return bool
+     *
+     * @throws MqttConnectionException when the publish fails, so a queued
+     *                                 notification is retried
      */
     public function send($notifiable, Notification $notification)
     {
@@ -37,7 +42,7 @@ class MqttChannel
         $message = $notification->toMqtt($notifiable);
 
         if (! $message instanceof MqttMessage) {
-            $message = new MqttMessage((string) $message);
+            $message = new MqttMessage(Arguments::payload($message));
         }
 
         $topic = $message->topic ?: $this->routeFor($notifiable, $notification);
@@ -49,9 +54,17 @@ class MqttChannel
             );
         }
 
-        return $this->manager
+        $published = $this->manager
             ->connection($message->connection)
             ->ConnectAndPublish($topic, $message->payload, $message->clientId, $message->retain, $message->qos);
+
+        if ($published === false) {
+            throw new MqttConnectionException(
+                "Sending the MQTT notification to [{$topic}] failed; see the log for the broker error."
+            );
+        }
+
+        return true;
     }
 
     /**

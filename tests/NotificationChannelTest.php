@@ -93,4 +93,38 @@ class DummyNotifiable
 
         $this->assertSame(2, $fake->published()[0]['qos']);
     }
+
+    public function test_a_failed_publish_throws_so_queued_notifications_retry()
+    {
+        config(['mqtt.host' => '127.0.0.1', 'mqtt.port' => 1, 'mqtt.timeout' => 1]);
+        $channel = new \Salman\Mqtt\Notifications\MqttChannel($this->app->make(\Salman\Mqtt\MqttManager::class));
+
+        $notification = new class () extends \Illuminate\Notifications\Notification {
+            public function toMqtt($notifiable)
+            {
+                return \Salman\Mqtt\Notifications\MqttMessage::create('alarm')->topic('alerts');
+            }
+        };
+
+        $this->expectException(\Salman\Mqtt\Exceptions\MqttConnectionException::class);
+
+        $channel->send(new \stdClass(), $notification);
+    }
+
+    public function test_an_array_payload_gives_a_clear_error()
+    {
+        \Salman\Mqtt\Facades\Mqtt::fake();
+        $channel = new \Salman\Mqtt\Notifications\MqttChannel($this->app->make(\Salman\Mqtt\MqttManager::class));
+
+        $notification = new class () extends \Illuminate\Notifications\Notification {
+            public function toMqtt($notifiable)
+            {
+                return ['temp' => 21];
+            }
+        };
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $channel->send(new \stdClass(), $notification);
+    }
 }

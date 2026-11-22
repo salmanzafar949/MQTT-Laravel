@@ -157,4 +157,109 @@ class BrokerQosAndLastWillTest extends TestCase
 
         $this->assertLessThan(2.0, microtime(true) - $started, '20 QoS 1/2 publishes should take well under 2 seconds on localhost.');
     }
+
+    public function test_publishes_always_use_a_clean_session()
+    {
+        $topic = 'laravel-mqtt/clean/'.uniqid();
+        $clientId = 'lmq-clean-'.substr(uniqid(), -8);
+        $file = tempnam(sys_get_temp_dir(), 'mqtt-clean-');
+        $session = ['clean_session' => false];
+
+        // A persistent subscriber session for $clientId...
+        $first = pcntl_fork();
+        if ($first === 0) {
+            $mqtt = new Mqtt($this->broker($session));
+            pcntl_async_signals(true);
+            pcntl_signal(SIGALRM, function () use ($mqtt) {
+                $mqtt->interrupt();
+            });
+            pcntl_alarm(1);
+            $mqtt->ConnectAndSubscribe($topic, function () {
+            }, $clientId, 1);
+            exit(0);
+        }
+        pcntl_waitpid($first, $status);
+
+        // ...is discarded by a publish with the same id, even though the
+        // config asks for persistent sessions.
+        $this->assertTrue((new Mqtt($this->broker($session)))->ConnectAndPublish('laravel-mqtt/other', 'x', $clientId));
+        $this->assertTrue((new Mqtt($this->broker()))->ConnectAndPublish($topic, 'should-not-be-queued', null, null, 1));
+
+        // So nothing was queued for the old session.
+        $watcher = pcntl_fork();
+        if ($watcher === 0) {
+            $mqtt = new Mqtt($this->broker($session));
+            pcntl_async_signals(true);
+            pcntl_signal(SIGALRM, function () use ($mqtt) {
+                $mqtt->interrupt();
+            });
+            pcntl_alarm(2);
+            $mqtt->ConnectAndSubscribe($topic, function ($t, $m) use ($file) {
+                file_put_contents($file, $m, FILE_APPEND);
+            }, $clientId, 1);
+            exit(0);
+        }
+        pcntl_waitpid($watcher, $status);
+
+        $received = (string) file_get_contents($file);
+        @unlink($file);
+
+        $this->assertSame('', $received);
+    }
+
+    public function test_the_facade_interrupt_stops_a_loop_started_with_new_mqtt()
+    {
+        $topic = 'laravel-mqtt/interrupt/'.uniqid();
+
+        $publisher = pcntl_fork();
+        if ($publisher === 0) {
+            usleep(800000);
+            (new Mqtt($this->broker()))->ConnectAndPublish($topic, 'stop');
+            exit(0);
+        }
+
+        $started = microtime(true);
+        $result = (new Mqtt($this->broker()))->ConnectAndSubscribe($topic, function () {
+            \Salman\Mqtt\Facades\Mqtt::interrupt();
+        });
+        pcntl_waitpid($publisher, $status);
+
+        $this->assertTrue($result);
+        $this->assertLessThan(5, microtime(true) - $started);
+    }
+
+    public function test_subscribers_receive_messages_without_polling_delay()
+    {
+        $topic = 'laravel-mqtt/latency/'.uniqid();
+        $file = tempnam(sys_get_temp_dir(), 'mqtt-latency-');
+
+        $pid = pcntl_fork();
+        if ($pid === 0) {
+            pcntl_async_signals(true);
+            pcntl_alarm(15);
+            $count = 0;
+            (new Mqtt($this->broker()))->ConnectAndSubscribe($topic, function ($t, $sentAt) use ($file, &$count) {
+                file_put_contents($file, (microtime(true) - (float) $sentAt).PHP_EOL, FILE_APPEND);
+                if (++$count >= 10) {
+                    exit(0);
+                }
+            });
+            exit(1);
+        }
+
+        usleep(1000000);
+        $publisher = new Mqtt($this->broker());
+        for ($i = 0; $i < 10; $i++) {
+            $publisher->ConnectAndPublish($topic, (string) microtime(true));
+            usleep(150000);
+        }
+        pcntl_waitpid($pid, $status);
+
+        $latencies = array_map('floatval', array_filter(explode(PHP_EOL, (string) file_get_contents($file))));
+        @unlink($file);
+        sort($latencies);
+
+        $this->assertCount(10, $latencies);
+        $this->assertLessThan(0.03, $latencies[4], 'Median receive latency should be a few milliseconds.');
+    }
 }

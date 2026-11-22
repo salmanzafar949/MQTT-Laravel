@@ -12,7 +12,7 @@ return [
     'password'  => env('MQTT_PASSWORD', ''),
     'username'  => env('MQTT_USERNAME', ''),
     'port'      => env('MQTT_PORT', '1883'),
-    'timeout'   => (int) env('MQTT_TIMEOUT', 10),
+    'timeout'   => (float) env('MQTT_TIMEOUT', 10), // Seconds to wait for the broker (connect, acknowledgements)
 
     // Seconds between keep-alive pings sent to the broker.
     'keepalive' => (int) env('MQTT_KEEPALIVE', 10),

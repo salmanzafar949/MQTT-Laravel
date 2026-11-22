@@ -4,6 +4,7 @@ namespace Salman\Mqtt\Console;
 
 use Illuminate\Console\Command;
 use InvalidArgumentException;
+use Salman\Mqtt\Exceptions\MqttConnectionException;
 use Salman\Mqtt\MqttManager;
 
 class MqttPublishCommand extends Command
@@ -29,6 +30,12 @@ class MqttPublishCommand extends Command
         $topic = $this->argument('topic');
         $qos = $this->option('qos');
 
+        if ($this->option('retain') && $this->option('no-retain')) {
+            $this->error('Use either --retain or --no-retain, not both.');
+
+            return self::FAILURE;
+        }
+
         $retain = $this->option('retain') ? 1 : ($this->option('no-retain') ? 0 : null);
 
         try {
@@ -41,6 +48,10 @@ class MqttPublishCommand extends Command
             );
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
+
+            return self::FAILURE;
+        } catch (MqttConnectionException $e) {
+            $this->error("Failed to publish to [{$topic}]: ".$e->getMessage());
 
             return self::FAILURE;
         }

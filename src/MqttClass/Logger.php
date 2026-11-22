@@ -95,7 +95,9 @@ class Logger extends AbstractLogger
             }
         }
 
-        return $this->printable($this->redact(strtr($message, $replace)));
+        // Values are redacted and escaped individually (below), the template is
+        // escaped too, so nothing (e.g. a payload with a newline) can forge a log line.
+        return strtr($this->printable($message), $replace);
     }
 
     /**
@@ -117,16 +119,19 @@ class Logger extends AbstractLogger
         }
 
         if (is_array($value)) {
-            $json = json_encode($value, JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            $json = json_encode($value, JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
 
-            return $this->redact($json === false ? '[array]' : $json);
+            return $this->printable($this->redact($json === false ? '[array]' : $json));
         }
 
         return '['.get_debug_type($value).']';
     }
 
     /**
-     * Mask configured secrets (done on the raw bytes, before escaping).
+     * Mask configured secrets in a raw value, before escaping. In a packet the
+     * password is preceded by its 2-byte length, so that form is matched
+     * exactly and a short password can't mangle the rest of the dump; the
+     * bare value is only masked when it's long enough to be unambiguous.
      *
      * @param  string  $text
      * @return string
@@ -134,7 +139,11 @@ class Logger extends AbstractLogger
     protected function redact($text)
     {
         foreach ($this->secrets as $secret) {
-            $text = str_replace($secret, '******', $text);
+            $text = str_replace(pack('n', strlen($secret)).$secret, pack('n', 6).'******', $text);
+
+            if (strlen($secret) >= 8) {
+                $text = str_replace($secret, '******', $text);
+            }
         }
 
         return $text;
@@ -154,7 +163,7 @@ class Logger extends AbstractLogger
             }, $text);
         }
 
-        return (string) preg_replace_callback('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', function ($m) {
+        return (string) preg_replace_callback('/[\x00-\x1F\x7F]/', function ($m) {
             return sprintf('\x%02X', ord($m[0]));
         }, $text);
     }

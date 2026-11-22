@@ -4,7 +4,9 @@ namespace Salman\Mqtt\Console;
 
 use Illuminate\Console\Command;
 use InvalidArgumentException;
+use Salman\Mqtt\Exceptions\MqttConnectionException;
 use Salman\Mqtt\MqttManager;
+use Salman\Mqtt\Support\Arguments;
 
 class MqttSubscribeCommand extends Command
 {
@@ -28,6 +30,8 @@ class MqttSubscribeCommand extends Command
 
         try {
             $connection = $manager->connection($this->option('connection'));
+            Arguments::filters($topics);
+            $qos === null || Arguments::qos($qos);
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -49,6 +53,10 @@ class MqttSubscribeCommand extends Command
             );
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
+
+            return self::FAILURE;
+        } catch (MqttConnectionException $e) {
+            $this->error('The MQTT connection failed or was lost: '.$e->getMessage());
 
             return self::FAILURE;
         }

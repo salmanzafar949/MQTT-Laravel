@@ -61,4 +61,34 @@ class LoggerTest extends TestCase
 
         (new Logger())->error('it failed on [{topic}]', ['topic' => 'a/b', 'exception' => $e]);
     }
+
+    public function test_newlines_in_values_cannot_forge_log_lines()
+    {
+        Log::shouldReceive('log')->once()->withArgs(function ($level, $message) use (&$logged) {
+            $logged = $message;
+
+            return true;
+        });
+
+        (new Logger('default', true))->debug('Received: {message}', ['message' => "ok\n[2026-01-01 00:00:00] local.EMERGENCY: forged"]);
+
+        $this->assertStringNotContainsString("\n", $logged);
+        $this->assertStringContainsString('\x0A', $logged);
+    }
+
+    public function test_a_short_password_is_masked_without_mangling_the_dump()
+    {
+        Log::shouldReceive('log')->once()->withArgs(function ($level, $message) use (&$logged) {
+            $logged = $message;
+
+            return true;
+        });
+
+        $packet = "\x10\x1a\x00\x04MQTT\x04\xc2\x00\x0a\x00\x03xyz\x00\x05alice\x00\x01x";
+        (new Logger('default', true, ['x']))->debug('Sent data: {data}', ['data' => $packet]);
+
+        $this->assertStringContainsString('\x10', $logged);
+        $this->assertStringContainsString('xyz', $logged);
+        $this->assertStringContainsString('alice\x00\x06******', $logged);
+    }
 }

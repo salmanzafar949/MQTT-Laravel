@@ -35,4 +35,16 @@ class EventTest extends TestCase
                 && $event->connection === 'default';
         });
     }
+
+    public function test_binary_messages_survive_serialisation_for_queued_listeners()
+    {
+        $event = new \Salman\Mqtt\Events\MqttMessageReceived('t', "\xff\x00\xfe", 'second');
+
+        $this->assertNotFalse(json_encode(['data' => serialize($event)]));
+
+        $copy = unserialize(serialize($event));
+        $this->assertSame("\xff\x00\xfe", $copy->message);
+        $this->assertSame('t', $copy->topic);
+        $this->assertSame('second', $copy->connection);
+    }
 }

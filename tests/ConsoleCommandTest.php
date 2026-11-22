@@ -86,4 +86,21 @@ class ConsoleCommandTest extends TestCase
     {
         $this->artisan('mqtt:subscribe', ['topic' => ['a'], '--connection' => 'nope'])->assertExitCode(1);
     }
+
+    public function test_retain_and_no_retain_together_are_rejected()
+    {
+        Mqtt::fake();
+
+        $this->artisan('mqtt:publish', ['topic' => 'a', 'message' => 'on', '--retain' => true, '--no-retain' => true])
+            ->assertExitCode(1);
+
+        Mqtt::assertNothingPublished();
+    }
+
+    public function test_the_subscribe_command_validates_before_connecting()
+    {
+        $this->artisan('mqtt:subscribe', ['topic' => ['a/#/b']])
+            ->doesntExpectOutputToContain('Subscribing to')
+            ->assertExitCode(1);
+    }
 }

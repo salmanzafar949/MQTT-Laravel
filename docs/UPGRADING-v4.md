@@ -14,7 +14,7 @@ on `^3.0` and nothing changes for you.
 | | v3.x | v4.x |
 |---|---|---|
 | PHP | 7.2 – 8.4 | **8.0+** (CI-tested on 8.2 – 8.5) |
-| Laravel (CI-tested) | 9 – 12 | **12 – 13** (9 – 11 are end-of-life and no longer tested) |
+| Laravel | 5.5 – 12 (CI-tested on 9 – 12) | **12 – 13**, CI-tested (9 – 11 are end-of-life and no longer tested) |
 | Protocol engine | built-in fork of bluerhinos/phpMQTT | `php-mqtt/client` ^2.0 |
 | MQTT versions | 3.1 | **3.1.1** (default) and 3.1 |
 
@@ -50,6 +50,9 @@ options, compare it with the new default (or re-publish with
   The subscriber subscribes again after reconnecting.
 - **Persistent sessions**: with `clean_session` off, a fixed client id and QoS
   1/2, messages sent while a subscriber was offline arrive when it reconnects.
+  `clean_session` applies to subscribers with a fixed client id only. Publishes
+  and generated ids always use a clean session, so no stale sessions pile up
+  on the broker.
   `php-mqtt/client` can't combine reconnects with a clean session, so
   `clean_session` is forced off while reconnects are enabled.
 - **`clean_session`** option (default `true`).
@@ -84,6 +87,18 @@ options, compare it with the new default (or re-publish with
   throw) instead of hanging.
 - **Generated client ids** look like `lmq_` + 16 hex characters. Pass your own
   if anything depends on the format.
+- **`new Mqtt()` and the helpers follow `MQTT_CONNECTION`** (`mqtt.default`),
+  like the facade. In v3 they always used the top-level settings.
+- **The Last Will is only attached to subscribe connections.** A short publish
+  connection that's killed mid-request no longer announces the device as
+  offline.
+- **The `mqtt` notification channel throws `MqttConnectionException` when the
+  publish fails**, so queued notifications are retried instead of being lost.
+- **Topic filters are validated**: `+` must fill a whole level and `#` must be
+  the last one; topics must be valid UTF-8 and at most 65,535 bytes.
+- **`timeout` is a float** (e.g. `0.5`) and also bounds the wait for SUBACK.
+- **`Mqtt::fake()` rejects unconfigured connection names**, like the real
+  client, so a typo fails in tests too.
 
 ## Not supported
 

@@ -36,6 +36,7 @@ class QueuedPublishTest extends TestCase
 
     public function test_the_job_targets_the_requested_mqtt_connection()
     {
+        config(['mqtt.connections.sensors' => ['host' => 'sensors.local']]);
         $fake = Mqtt::fake();
 
         $job = new PublishMqttMessage('sensors/temp', '21.5', null, null, 'sensors');

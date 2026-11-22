@@ -329,4 +329,108 @@ class MqttTest extends TestCase
 
         $this->addToAssertionCount(1);
     }
+
+    public function test_new_mqtt_follows_the_configured_default_connection()
+    {
+        config([
+            'mqtt.host' => 'flat.example.com',
+            'mqtt.default' => 'second',
+            'mqtt.connections.second' => ['host' => 'second.example.com'],
+        ]);
+
+        $mqtt = new Mqtt();
+        $config = (new \ReflectionProperty($mqtt, 'config'))->getValue($mqtt);
+
+        $this->assertSame('second.example.com', $config['host']);
+        $this->assertSame('second', $mqtt->getConnectionName());
+
+        $named = new Mqtt(null, 'second');
+        $this->assertSame('second', $named->getConnectionName());
+    }
+
+    public function test_publish_connections_never_carry_the_last_will()
+    {
+        $config = ['last_will' => ['topic' => 'devices/1/status', 'message' => 'offline']];
+
+        $this->assertFalse($this->invoke(new Mqtt($config), 'settings', [false, false])->hasLastWill());
+        $this->assertTrue($this->invoke(new Mqtt($config), 'settings', [false, true])->hasLastWill());
+    }
+
+    public function test_fractional_timeouts_are_kept()
+    {
+        $this->assertSame(0.5, $this->invoke(new Mqtt(['timeout' => 0.5]), 'timeout'));
+        $this->assertSame(10.0, $this->invoke(new Mqtt(['timeout' => 0]), 'timeout'));
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidFilters')]
+    public function test_invalid_topic_filters_are_rejected($filter)
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new Mqtt([]))->ConnectAndSubscribe($filter, function () {
+        });
+    }
+
+    public static function invalidFilters(): array
+    {
+        return [['a/#/b'], ['a/b#'], ['a/+b'], ['#/a'], [''], ["\xff\xfe"]];
+    }
+
+    public function test_valid_wildcard_filters_are_accepted()
+    {
+        $this->assertSame(['#', '+', 'a/+/b', 'a/#', '+/+'], \Salman\Mqtt\Support\Arguments::filters(['#', '+', 'a/+/b', 'a/#', '+/+']));
+    }
+
+    public function test_topics_over_65535_bytes_or_invalid_utf8_are_rejected()
+    {
+        foreach ([str_repeat('a', 65536), "bad\xff"] as $topic) {
+            try {
+                (new Mqtt([]))->ConnectAndPublish($topic, 'm');
+                $this->fail('Expected an InvalidArgumentException.');
+            } catch (InvalidArgumentException $e) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->assertSame(str_repeat('a', 65535), \Salman\Mqtt\Support\Arguments::topic(str_repeat('a', 65535)));
+    }
+
+    public function test_a_non_callable_subscribe_callback_is_rejected()
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new Mqtt([]))->ConnectAndSubscribe('a', 'not a function');
+    }
+
+    public function test_a_subscribe_gives_up_when_no_suback_arrives()
+    {
+        if (! function_exists('pcntl_fork')) {
+            $this->markTestSkipped('Requires pcntl.');
+        }
+
+        // A server that sends CONNACK and then ignores everything (no SUBACK).
+        $server = stream_socket_server('tcp://127.0.0.1:0');
+        $port = (int) substr(strrchr(stream_socket_get_name($server, false), ':'), 1);
+
+        $pid = pcntl_fork();
+        if ($pid === 0) {
+            $conn = stream_socket_accept($server, 5);
+            fread($conn, 1024);
+            fwrite($conn, "\x20\x02\x00\x00");
+            sleep(5);
+            exit(0);
+        }
+
+        $started = microtime(true);
+        $result = (new Mqtt(['host' => '127.0.0.1', 'port' => $port, 'timeout' => 1]))->ConnectAndSubscribe('a', function () {
+        });
+        $elapsed = microtime(true) - $started;
+
+        posix_kill($pid, SIGKILL);
+        pcntl_waitpid($pid, $status);
+        fclose($server);
+
+        $this->assertFalse($result);
+        $this->assertLessThan(3, $elapsed);
+    }
 }

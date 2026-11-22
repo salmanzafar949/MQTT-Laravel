@@ -2,6 +2,7 @@
 
 namespace Salman\Mqtt;
 
+use BadMethodCallException;
 use InvalidArgumentException;
 use Salman\Mqtt\Jobs\PublishMqttMessage;
 use Salman\Mqtt\MqttClass\Mqtt;
@@ -32,6 +33,11 @@ class MqttManager
     public function connection($name = null)
     {
         if ($this->fake !== null) {
+            if ($name) {
+                // Fail on a typo in tests the same way production would.
+                $this->configFor($name);
+            }
+
             return $this->fake->connection($name);
         }
 
@@ -55,15 +61,14 @@ class MqttManager
     }
 
     /**
-     * Stop every running subscribe loop, on any connection.
+     * Stop every running subscribe loop in this process, on any connection
+     * (including ones created with `new Mqtt()` or the helpers).
      *
      * @return void
      */
     public function interrupt()
     {
-        foreach ($this->connections as $connection) {
-            $connection->interrupt();
-        }
+        Mqtt::interruptAll();
     }
 
     /**
@@ -153,6 +158,10 @@ class MqttManager
      */
     public function __call($method, $parameters)
     {
+        if ($this->fake === null && strncmp($method, 'assert', 6) === 0) {
+            throw new BadMethodCallException("Call Mqtt::fake() before Mqtt::{$method}().");
+        }
+
         return $this->connection()->{$method}(...$parameters);
     }
 }

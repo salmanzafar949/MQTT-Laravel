@@ -60,19 +60,36 @@ class Mqtt
     /** @var Logger|null */
     protected $logger = null;
 
+    /** @var array<int, self> instances currently running a subscribe loop */
+    protected static $running = [];
+
     /**
-     * @param  array<string, mixed>|null  $config  connection config; when null the
-     *                                              flat `mqtt.*` config is used (the default connection)
-     * @param  string  $connection  the connection name (used for dispatched events and logs)
+     * @param  array<string, mixed>|null  $config  connection config; when null it's
+     *                                              read from `config/mqtt.php` for $connection
+     * @param  string|null  $connection  the connection name; null (or "default") is the
+     *                                   connection `mqtt.default` points at
      */
-    public function __construct(?array $config = null, $connection = 'default')
+    public function __construct(?array $config = null, $connection = null)
     {
         if ($config === null) {
-            $config = function_exists('config') ? (array) config('mqtt') : [];
+            [$config, $connection] = $this->resolveConfig($connection);
         }
 
         $this->config = $config;
-        $this->connection = $connection;
+        $this->connection = $connection ?: 'default';
+    }
+
+    /**
+     * Stop every subscribe loop running in this process, however the
+     * connection was created (facade, `new Mqtt()` or the helpers).
+     *
+     * @return void
+     */
+    public static function interruptAll()
+    {
+        foreach (static::$running as $instance) {
+            $instance->interrupt();
+        }
     }
 
     /**
@@ -111,10 +128,13 @@ class Mqtt
 
         return $this->attempt(function () use ($topic, $msg, $client_id, $retain, $qos) {
             $repository = new MemoryRepository();
-            $client = $this->makeClient($client_id, $repository);
+            $client = $this->makeClient($this->resolveClientId($client_id), $repository);
 
             try {
-                $this->connectClient($client, false);
+                // A publish is one short connection: always a clean session (a
+                // persistent one would be left behind on the broker), and no Last
+                // Will or reconnects, which are for long-lived subscribers.
+                $client->connect($this->settings(false, false), true);
                 $client->publish($topic, $msg, $qos, $retain);
 
                 if ($qos > 0) {
@@ -152,8 +172,16 @@ class Mqtt
         $filters = Arguments::filters($topic);
         $qos = $this->resolveQos($qos);
 
+        if (! is_callable($proc)) {
+            throw new InvalidArgumentException('The subscribe callback must be callable.');
+        }
+
         return $this->attempt(function () use ($filters, $proc, $client_id, $qos) {
-            $client = $this->makeClient($client_id, new MemoryRepository());
+            $generatedId = $client_id === null || $client_id === '';
+            $clientId = $this->resolveClientId($client_id);
+            $reconnect = (bool) ($this->config['reconnect']['enabled'] ?? false);
+            $repository = new MemoryRepository();
+            $client = $this->makeClient($clientId, $repository);
 
             // Deliver through the client-wide hook rather than per-subscription
             // callbacks: with a persistent session the broker sends queued
@@ -172,14 +200,35 @@ class Mqtt
             });
 
             $this->activeClient = $client;
+            static::$running[spl_object_id($this)] = $this;
+            $connected = false;
 
             try {
-                $this->connectClient($client, true);
+                // php-mqtt/client can't combine reconnects with a clean session. A
+                // generated id can never resume its session, so it otherwise
+                // always gets a clean one.
+                $cleanSession = $reconnect ? false : ($generatedId || (bool) ($this->config['clean_session'] ?? true));
+                $client->connect($this->settings($reconnect, true), $cleanSession);
+                $connected = true;
+
                 $this->subscribeAll($client, $filters, $qos);
-                $client->loop(true);
+                $this->waitForAcknowledgement($client, $repository);
+
+                if ($repository->countSubscriptions() < count($filters)) {
+                    throw new MqttClientException('The broker rejected the subscription to ['.implode(', ', $filters).'].');
+                }
+
+                $client->run();
+            } catch (Interrupted $e) {
+                // interrupt() was called during a reconnect: a clean stop.
             } finally {
                 $this->activeClient = null;
+                unset(static::$running[spl_object_id($this)]);
                 $this->disconnect($client);
+
+                if ($connected && $reconnect && $generatedId) {
+                    $this->discardSession($clientId);
+                }
             }
 
             return true;
@@ -220,7 +269,7 @@ class Mqtt
     }
 
     /**
-     * @param  string|int|null  $clientId
+     * @param  string  $clientId
      * @return Client
      */
     protected function makeClient($clientId, Repository $repository)
@@ -228,7 +277,7 @@ class Mqtt
         $client = new Client(
             (string) ($this->config['host'] ?? '127.0.0.1'),
             (int) ($this->config['port'] ?? 1883),
-            $this->resolveClientId($clientId),
+            $clientId,
             $this->protocol(),
             $repository,
             $this->logger()
@@ -238,24 +287,29 @@ class Mqtt
     }
 
     /**
-     * Automatic reconnects only make sense for long-running subscribers, so
-     * they're applied to subscribe connections only.
+     * Reconnects force a persistent session. With a generated client id nobody
+     * can resume it, so connect once more with a clean session to make the
+     * broker drop it instead of keeping it forever.
      *
+     * @param  string  $clientId
      * @return void
      */
-    protected function connectClient(MqttClient $client, bool $forSubscribe)
+    protected function discardSession($clientId)
     {
-        $reconnect = $forSubscribe && (bool) ($this->config['reconnect']['enabled'] ?? false);
+        $client = $this->makeClient($clientId, new MemoryRepository());
 
-        // php-mqtt/client does not allow automatic reconnects with a clean session.
-        $cleanSession = $reconnect ? false : (bool) ($this->config['clean_session'] ?? true);
+        try {
+            $client->connect($this->settings(false, false), true);
+        } catch (MqttClientException $e) {
+            return;
+        }
 
-        $client->connect($this->settings($reconnect), $cleanSession);
+        $this->disconnect($client);
     }
 
     /**
      * Run the loop until every outgoing message is acknowledged (PUBACK for
-     * QoS 1, PUBREC/PUBREL/PUBCOMP for QoS 2) or the timeout passes.
+     * QoS 1, PUBREC/PUBREL/PUBCOMP for QoS 2, SUBACK) or the timeout passes.
      *
      * @return void
      */
@@ -268,7 +322,7 @@ class Mqtt
             if (microtime(true) - $startedAt >= $timeout) {
                 throw new DataTransferException(
                     DataTransferException::EXCEPTION_RX_DATA,
-                    sprintf('the broker did not acknowledge the message within %s seconds.', $timeout)
+                    sprintf('the broker did not acknowledge within %s seconds.', $timeout)
                 );
             }
 
@@ -320,9 +374,10 @@ class Mqtt
 
     /**
      * @param  bool  $reconnect  enable automatic reconnects
+     * @param  bool  $lastWill  attach the configured Last Will
      * @return ConnectionSettings
      */
-    protected function settings($reconnect = false)
+    protected function settings($reconnect = false, $lastWill = true)
     {
         $settings = (new ConnectionSettings())
             ->setUsername($this->nullable($this->config['username'] ?? null))
@@ -346,7 +401,7 @@ class Mqtt
 
         $will = (array) ($this->config['last_will'] ?? []);
 
-        if (! empty($will['topic'])) {
+        if ($lastWill && ! empty($will['topic'])) {
             $settings = $settings->setLastWillTopic(Arguments::topic($will['topic']))
                 ->setLastWillMessage(Arguments::payload($will['message'] ?? ''))
                 ->setLastWillQualityOfService(Arguments::qos($will['qos'] ?? 0))
@@ -463,6 +518,27 @@ class Mqtt
         }
 
         return (string) $clientId;
+    }
+
+    /**
+     * The config for a connection name, through the manager when running in
+     * Laravel so `mqtt.default` and `mqtt.connections` are honoured.
+     *
+     * @param  string|null  $connection
+     * @return array{0: array<string, mixed>, 1: string}
+     */
+    protected function resolveConfig($connection)
+    {
+        if (function_exists('app') && app()->bound(MqttManager::class)) {
+            $manager = app(MqttManager::class);
+            $name = ($connection === null || $connection === '' || $connection === 'default')
+                ? $manager->getDefaultConnection()
+                : (string) $connection;
+
+            return [$manager->configFor($name), $name];
+        }
+
+        return [function_exists('config') ? (array) config('mqtt') : [], $connection ?: 'default'];
     }
 
     /**

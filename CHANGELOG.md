@@ -59,7 +59,30 @@ v3.x remains available, unchanged, for PHP 7.2+.
   of them. A config file published by an older version gets new nested keys
   from the package defaults.
 - Generated client ids are random (`lmq_` + 16 hex characters).
-- Automatic reconnects apply to subscribe connections only.
+- Automatic reconnects and the Last Will apply to subscribe connections only.
+- Publishes, and subscribers without a client id, always use a clean session,
+  so no orphaned sessions accumulate on the broker. With reconnects and a
+  generated id, the session is removed when the subscriber stops.
+- `new Mqtt()` and the helper functions follow `mqtt.default`
+  (`MQTT_CONNECTION`), like the facade.
+- `Mqtt::interrupt()` stops every subscribe loop in the process (including
+  `new Mqtt()` / helper ones) and ends a reconnect backoff immediately, so
+  `mqtt:subscribe` exits at once on SIGTERM.
+- Subscribers wait for data with `stream_select()` instead of polling every
+  100 ms: messages are handled within milliseconds and QoS 1 bursts are no
+  longer dropped by the broker.
+- Subscribing waits for the SUBACK (within `timeout`) and fails if the broker
+  rejects the subscription. Topic filters are validated (`+`/`#` placement),
+  and topics must be UTF-8 and at most 65,535 bytes.
+- Reconnect attempts are logged as warnings. Debug packet dumps escape
+  newlines (no forged log lines) and mask the password precisely.
+- The `mqtt` notification channel throws when the publish fails, so queued
+  notifications are retried; array payloads give a clear error.
+- `MqttMessageReceived` serialises binary payloads safely for queued listeners.
+- `Mqtt::fake()` rejects unconfigured connection names; calling an assertion
+  without `fake()` explains what to do.
+- `timeout` accepts fractions of a second.
+- The Composer dist no longer ships tests and development config.
 - CI now tests Laravel 12 and 13 on PHP 8.2 – 8.5. Laravel 9 – 11 are no longer
   tested: they're end-of-life with unpatched security advisories, and Composer
   refuses to install them.
