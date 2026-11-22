@@ -59,4 +59,44 @@ class MqttManagerTest extends TestCase
 
         $this->manager()->configFor('does-not-exist');
     }
+
+    public function test_nested_settings_are_merged_into_named_connections()
+    {
+        config([
+            'mqtt.tls' => ['enabled' => false, 'verify_peer' => true, 'verify_peer_name' => true],
+            'mqtt.connections.secure' => ['tls' => ['enabled' => true]],
+        ]);
+
+        $config = $this->app->make(MqttManager::class)->configFor('secure');
+
+        $this->assertTrue($config['tls']['enabled']);
+        $this->assertTrue($config['tls']['verify_peer']);
+        $this->assertTrue($config['tls']['verify_peer_name']);
+    }
+
+    public function test_the_default_can_point_at_a_named_connection()
+    {
+        config([
+            'mqtt.host' => 'flat.example.com',
+            'mqtt.default' => 'cloud',
+            'mqtt.connections.cloud' => ['host' => 'cloud.example.com'],
+        ]);
+
+        $manager = $this->app->make(MqttManager::class);
+
+        $this->assertSame('cloud.example.com', $manager->configFor('cloud')['host']);
+        $this->assertSame('flat.example.com', $manager->configFor('default')['host']);
+    }
+
+    public function test_interrupt_reaches_every_resolved_connection()
+    {
+        config(['mqtt.connections.sensors' => ['host' => 'sensors.local']]);
+        $manager = $this->app->make(MqttManager::class);
+        $manager->connection();
+        $manager->connection('sensors');
+
+        $manager->interrupt();
+
+        $this->addToAssertionCount(1);
+    }
 }

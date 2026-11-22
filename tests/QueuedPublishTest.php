@@ -2,6 +2,7 @@
 
 namespace Salman\Mqtt\Tests;
 
+use Salman\Mqtt\Exceptions\MqttConnectionException;
 use Illuminate\Support\Facades\Queue;
 use Salman\Mqtt\Facades\Mqtt;
 use Salman\Mqtt\Jobs\PublishMqttMessage;
@@ -75,5 +76,35 @@ class QueuedPublishTest extends TestCase
         Queue::assertPushed(PublishMqttMessage::class, function ($job) {
             return $job->queue === 'mqtt' && $job->connection === 'redis';
         });
+    }
+
+    public function test_a_failed_publish_makes_the_job_throw_so_it_is_retried()
+    {
+        config(['mqtt.host' => '127.0.0.1', 'mqtt.port' => 1, 'mqtt.timeout' => 1]);
+
+        $this->expectException(MqttConnectionException::class);
+
+        (new PublishMqttMessage('t', 'm'))->handle($this->app->make(MqttManager::class));
+    }
+
+    public function test_binary_payloads_survive_queue_serialisation()
+    {
+        $binary = "\xff\xfe\x00\x01 raw";
+        $job = new PublishMqttMessage('t', $binary);
+
+        // The queue JSON-encodes the serialised job; invalid UTF-8 would break it.
+        $this->assertNotFalse(json_encode(['data' => serialize($job)]));
+        $this->assertSame($binary, unserialize(serialize($job))->payload());
+
+        $fake = \Salman\Mqtt\Facades\Mqtt::fake();
+        $job->handle($this->app->make(MqttManager::class));
+        $this->assertSame($binary, $fake->published()[0]['message']);
+    }
+
+    public function test_invalid_arguments_fail_at_dispatch_time()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        \Salman\Mqtt\Facades\Mqtt::queue('sensors/#', 'm');
     }
 }

@@ -24,10 +24,10 @@ on `^3.0` and nothing changes for you.
 composer require salmanzafar/laravel-mqtt:^4.0
 ```
 
-If you published `config/mqtt.php`, compare it with the new default (or
-re-publish with `php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider" --force`)
-to pick up the new options below. Every new option has a safe default, so an
-old config file keeps working.
+If you published `config/mqtt.php`, it keeps working: new keys, nested ones
+included, are filled in from the package defaults. To see and document the new
+options, compare it with the new default (or re-publish with
+`php artisan vendor:publish --provider="Salman\Mqtt\MqttServiceProvider" --force`).
 
 ## What stays the same
 
@@ -46,7 +46,10 @@ old config file keeps working.
   connection's `qos`.
 - **MQTT 3.1.1** by default, set with `protocol` (`'3.1.1'` or `'3.1'`).
 - **Last Will and Testament** with `last_will.topic|message|qos|retain`.
-- **Automatic reconnects** with `reconnect.enabled|max_attempts|delay`.
+- **Automatic reconnects** for subscribers with `reconnect.enabled|max_attempts|delay`.
+  The subscriber subscribes again after reconnecting.
+- **Persistent sessions**: with `clean_session` off, a fixed client id and QoS
+  1/2, messages sent while a subscriber was offline arrive when it reconnects.
   `php-mqtt/client` can't combine reconnects with a clean session, so
   `clean_session` is forced off while reconnects are enabled.
 - **`clean_session`** option (default `true`).
@@ -64,8 +67,23 @@ old config file keeps working.
 - **TLS turns on when `certfile` is set** (as before) **or when `tls.enabled` is
   true**, so you can now use a public-CA broker without a CA file.
 - **`debug` now logs every MQTT packet** through the Laravel logger, because
-  that's what `php-mqtt/client` logs at debug level. Errors are still logged
-  when `debug` is off.
+  that's what `php-mqtt/client` logs at debug level. Warnings and errors are
+  logged when `debug` is off, and the password is masked.
+- **Invalid arguments throw `InvalidArgumentException`**: an empty topic or one
+  with `+`/`#` when publishing, an array (or other non-string) payload, an
+  empty topic list for subscribing, a QoS other than 0, 1 or 2, an unknown
+  `protocol`. v3 sent these to the broker or silently adjusted them.
+- **`$retain = 0` means "don't retain".** In v3 any falsy value fell back to
+  the configured `retain`; now only `null` does.
+- **Queued publishes that fail throw**, so the job is retried and ends up in
+  `failed_jobs` instead of being marked as done.
+- **A subscribe callback that throws no longer stops the loop.** The exception
+  is logged and the next message is delivered.
+- **`timeout` also bounds the wait for the broker's CONNACK and for QoS 1/2
+  acknowledgements**, so a stuck broker makes the call return `false` (or
+  throw) instead of hanging.
+- **Generated client ids** look like `lmq_` + 16 hex characters. Pass your own
+  if anything depends on the format.
 
 ## Not supported
 

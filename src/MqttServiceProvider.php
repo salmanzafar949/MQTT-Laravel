@@ -11,7 +11,6 @@ class MqttServiceProvider extends ServiceProvider
 {
     public function boot()
     {
-        $this->mergeConfigFrom(__DIR__.'/config/mqtt.php', 'mqtt');
         $this->publishes([
             __DIR__.'/config/mqtt.php' => config_path('mqtt.php'),
         ], 'mqtt-config');
@@ -28,6 +27,8 @@ class MqttServiceProvider extends ServiceProvider
 
     public function register()
     {
+        $this->mergeDefaultConfig();
+
         $this->app->singleton(MqttManager::class, function () {
             return new MqttManager();
         });
@@ -35,6 +36,26 @@ class MqttServiceProvider extends ServiceProvider
         // The 'Mqtt' facade resolves the manager; unknown methods are proxied
         // to the default connection so existing calls keep working.
         $this->app->alias(MqttManager::class, 'Mqtt');
+    }
+
+    /**
+     * Merge the package defaults into the app's config, nested arrays
+     * included, so a config file published by an older version still gets new
+     * keys such as `tls.enabled`. Skipped when the config is cached.
+     *
+     * @return void
+     */
+    protected function mergeDefaultConfig()
+    {
+        if ($this->app instanceof \Illuminate\Contracts\Foundation\CachesConfiguration
+            && $this->app->configurationIsCached()) {
+            return;
+        }
+
+        $config = $this->app->make('config');
+        $defaults = require __DIR__.'/config/mqtt.php';
+
+        $config->set('mqtt', array_replace_recursive($defaults, (array) $config->get('mqtt', [])));
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace Salman\Mqtt\Testing;
 
 use PHPUnit\Framework\Assert as PHPUnit;
+use Salman\Mqtt\Support\Arguments;
 
 /**
  * A test double for the MQTT client. Swap it in with `Mqtt::fake()` and assert
@@ -35,11 +36,11 @@ class MqttFake
     public function ConnectAndPublish($topic, $msg, $client_id = null, $retain = null, $qos = null)
     {
         $this->published[] = [
-            'topic' => $topic,
-            'message' => $msg,
+            'topic' => Arguments::topic($topic),
+            'message' => Arguments::payload($msg),
             'client_id' => $client_id,
             'retain' => $retain,
-            'qos' => $qos,
+            'qos' => $qos === null ? null : Arguments::qos($qos),
             'connection' => $this->connection,
         ];
 
@@ -58,8 +59,8 @@ class MqttFake
     public function ConnectAndSubscribe($topic, $proc, $client_id = null, $qos = null)
     {
         $this->subscriptions[] = [
-            'topics' => is_array($topic) ? array_values($topic) : [$topic],
-            'qos' => $qos,
+            'topics' => Arguments::filters($topic),
+            'qos' => $qos === null ? null : Arguments::qos($qos),
             'connection' => $this->connection,
         ];
 
@@ -90,15 +91,63 @@ class MqttFake
     public function queue($topic, $message, $clientId = null, $retain = null, $connection = null, $qos = null)
     {
         $this->queued[] = [
-            'topic' => $topic,
-            'message' => $message,
+            'topic' => Arguments::topic($topic),
+            'message' => Arguments::payload($message),
             'client_id' => $clientId,
             'retain' => $retain,
-            'qos' => $qos,
+            'qos' => $qos === null ? null : Arguments::qos($qos),
             'connection' => $connection ?: $this->connection,
         ];
 
         return true;
+    }
+
+    /**
+     * Fakes record subscriptions but never run a loop.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function subscriptions()
+    {
+        return $this->subscriptions;
+    }
+
+    /**
+     * Assert a subscription was made to the given topic filter.
+     *
+     * @param  string  $topic
+     * @return void
+     */
+    public function assertSubscribed($topic)
+    {
+        $matches = array_filter($this->subscriptions, function ($record) use ($topic) {
+            return in_array($topic, $record['topics'], true);
+        });
+
+        PHPUnit::assertNotEmpty($matches, "No MQTT subscription to [{$topic}] was made.");
+    }
+
+    /**
+     * Build a failure message listing what was recorded on the topic.
+     *
+     * @param  string  $verb
+     * @param  array<int, array<string, mixed>>  $records
+     * @param  string  $topic
+     * @return string
+     */
+    protected function missingMessage($verb, array $records, $topic)
+    {
+        $payloads = array_map(function ($record) {
+            return var_export($record['message'], true);
+        }, array_values(array_filter($records, function ($record) use ($topic) {
+            return $record['topic'] === $topic;
+        })));
+
+        if ($payloads === []) {
+            return "No MQTT message was {$verb} on topic [{$topic}].";
+        }
+
+        return "No matching MQTT message was {$verb} on topic [{$topic}]. Payloads {$verb} there: ".implode(', ', $payloads).'.';
     }
 
     /**
@@ -139,17 +188,15 @@ class MqttFake
                 return false;
             }
 
-            if (is_callable($message)) {
+            // A string is always a payload, even one that names a function.
+            if (! is_string($message) && is_callable($message)) {
                 return (bool) $message($record['message'], $record);
             }
 
             return $message === null || $record['message'] === $message;
         });
 
-        PHPUnit::assertNotEmpty(
-            $matches,
-            "The expected MQTT message on topic [{$topic}] was not published."
-        );
+        PHPUnit::assertNotEmpty($matches, $this->missingMessage('published', $this->published, $topic));
     }
 
     /**
@@ -223,17 +270,15 @@ class MqttFake
                 return false;
             }
 
-            if (is_callable($message)) {
+            // A string is always a payload, even one that names a function.
+            if (! is_string($message) && is_callable($message)) {
                 return (bool) $message($record['message'], $record);
             }
 
             return $message === null || $record['message'] === $message;
         });
 
-        PHPUnit::assertNotEmpty(
-            $matches,
-            "The expected MQTT message on topic [{$topic}] was not queued."
-        );
+        PHPUnit::assertNotEmpty($matches, $this->missingMessage('queued', $this->queued, $topic));
     }
 
     /**

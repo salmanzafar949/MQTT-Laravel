@@ -9,12 +9,17 @@
 
 namespace Salman\Mqtt\MqttClass;
 
+use InvalidArgumentException;
 use PhpMqtt\Client\ConnectionSettings;
+use PhpMqtt\Client\Contracts\Repository;
+use PhpMqtt\Client\Exceptions\DataTransferException;
 use PhpMqtt\Client\Exceptions\MqttClientException;
 use PhpMqtt\Client\MqttClient;
-use Psr\Log\LoggerInterface;
+use PhpMqtt\Client\Repositories\MemoryRepository;
 use Salman\Mqtt\Events\MqttMessageReceived;
 use Salman\Mqtt\Exceptions\MqttConnectionException;
+use Salman\Mqtt\MqttManager;
+use Salman\Mqtt\Support\Arguments;
 
 /*
     Licence
@@ -52,10 +57,13 @@ class Mqtt
     /** @var MqttClient|null the client currently running a subscribe loop */
     protected $activeClient = null;
 
+    /** @var Logger|null */
+    protected $logger = null;
+
     /**
      * @param  array<string, mixed>|null  $config  connection config; when null the
      *                                              flat `mqtt.*` config is used (the default connection)
-     * @param  string  $connection  the connection name (used for dispatched events)
+     * @param  string  $connection  the connection name (used for dispatched events and logs)
      */
     public function __construct(?array $config = null, $connection = 'default')
     {
@@ -79,29 +87,38 @@ class Mqtt
 
     /**
      * Connect, publish one message and disconnect. For QoS 1 and 2 this waits
-     * for the broker to acknowledge the message before disconnecting.
+     * (up to `timeout` seconds) for the broker to acknowledge the message.
      *
      * @param  string  $topic
      * @param  string  $msg
      * @param  string|int|null  $client_id
-     * @param  int|null  $retain
-     * @param  int|null  $qos  defaults to the connection's `qos`
+     * @param  int|bool|null  $retain  null uses the connection's `retain`
+     * @param  int|null  $qos  null uses the connection's `qos`
      * @return bool
+     *
+     * @throws InvalidArgumentException for an invalid topic, payload or QoS
      */
     public function ConnectAndPublish($topic, $msg, $client_id = null, $retain = null, $qos = null)
     {
+        if ($fake = $this->fakeManager()) {
+            return $fake->connection($this->connection)->ConnectAndPublish($topic, $msg, $client_id, $retain, $qos);
+        }
+
+        $topic = Arguments::topic($topic);
+        $msg = Arguments::payload($msg);
         $qos = $this->resolveQos($qos);
         $retain = $this->resolveRetain($retain);
 
         return $this->attempt(function () use ($topic, $msg, $client_id, $retain, $qos) {
-            $client = $this->connect($client_id);
+            $repository = new MemoryRepository();
+            $client = $this->makeClient($client_id, $repository);
 
             try {
-                $client->publish($topic, (string) $msg, $qos, $retain);
+                $this->connectClient($client, false);
+                $client->publish($topic, $msg, $qos, $retain);
 
                 if ($qos > 0) {
-                    // Run the loop until the PUBACK / PUBREC-PUBREL-PUBCOMP flow completes.
-                    $client->loop(true, true);
+                    $this->waitForAcknowledgement($client, $repository);
                 }
             } finally {
                 $this->disconnect($client);
@@ -115,28 +132,50 @@ class Mqtt
      * Connect and listen on one or more topic filters. Blocks until
      * interrupt() is called (e.g. from a signal handler), then disconnects.
      *
+     * Exceptions thrown by the callback or by event listeners are logged and
+     * don't stop the loop.
+     *
      * @param  string|array<int, string>  $topic
      * @param  callable  $proc  receives ($topic, $message)
      * @param  string|int|null  $client_id
-     * @param  int|null  $qos  defaults to the connection's `qos`
-     * @return bool
+     * @param  int|null  $qos  null uses the connection's `qos`
+     * @return bool  true after interrupt(), false if the connection failed or was lost
+     *
+     * @throws InvalidArgumentException for invalid topic filters or QoS
      */
     public function ConnectAndSubscribe($topic, $proc, $client_id = null, $qos = null)
     {
+        if ($fake = $this->fakeManager()) {
+            return $fake->connection($this->connection)->ConnectAndSubscribe($topic, $proc, $client_id, $qos);
+        }
+
+        $filters = Arguments::filters($topic);
         $qos = $this->resolveQos($qos);
 
-        return $this->attempt(function () use ($topic, $proc, $client_id, $qos) {
-            $client = $this->connect($client_id);
+        return $this->attempt(function () use ($filters, $proc, $client_id, $qos) {
+            $client = $this->makeClient($client_id, new MemoryRepository());
+
+            // Deliver through the client-wide hook rather than per-subscription
+            // callbacks: with a persistent session the broker sends queued
+            // messages right after CONNACK, before the SUBACK that activates a
+            // subscription callback, and those messages would otherwise be lost.
+            $client->registerMessageReceivedEventHandler(function ($client, $topic, $message) use ($proc) {
+                $this->deliver($proc, $topic, $message);
+            });
+
+            // After an automatic reconnect, subscribe again in case the broker
+            // lost the session.
+            $client->registerConnectedEventHandler(function ($client, $isAutoReconnect) use ($filters, $qos) {
+                if ($isAutoReconnect) {
+                    $this->subscribeAll($client, $filters, $qos);
+                }
+            });
+
             $this->activeClient = $client;
 
             try {
-                foreach ((array) $topic as $filter) {
-                    $client->subscribe($filter, function ($topic, $message) use ($proc) {
-                        $this->dispatchReceived($topic, $message);
-                        call_user_func($proc, $topic, $message);
-                    }, $qos);
-                }
-
+                $this->connectClient($client, true);
+                $this->subscribeAll($client, $filters, $qos);
                 $client->loop(true);
             } finally {
                 $this->activeClient = null;
@@ -182,38 +221,113 @@ class Mqtt
 
     /**
      * @param  string|int|null  $clientId
-     * @return MqttClient
+     * @return Client
      */
-    protected function connect($clientId)
+    protected function makeClient($clientId, Repository $repository)
     {
-        $reconnect = (bool) ($this->config['reconnect']['enabled'] ?? false);
-
-        $client = new MqttClient(
+        $client = new Client(
             (string) ($this->config['host'] ?? '127.0.0.1'),
             (int) ($this->config['port'] ?? 1883),
             $this->resolveClientId($clientId),
             $this->protocol(),
-            null,
+            $repository,
             $this->logger()
         );
+
+        return $client->setReadTimeout($this->timeout());
+    }
+
+    /**
+     * Automatic reconnects only make sense for long-running subscribers, so
+     * they're applied to subscribe connections only.
+     *
+     * @return void
+     */
+    protected function connectClient(MqttClient $client, bool $forSubscribe)
+    {
+        $reconnect = $forSubscribe && (bool) ($this->config['reconnect']['enabled'] ?? false);
 
         // php-mqtt/client does not allow automatic reconnects with a clean session.
         $cleanSession = $reconnect ? false : (bool) ($this->config['clean_session'] ?? true);
 
-        $client->connect($this->settings(), $cleanSession);
-
-        return $client;
+        $client->connect($this->settings($reconnect), $cleanSession);
     }
 
     /**
+     * Run the loop until every outgoing message is acknowledged (PUBACK for
+     * QoS 1, PUBREC/PUBREL/PUBCOMP for QoS 2) or the timeout passes.
+     *
+     * @return void
+     */
+    protected function waitForAcknowledgement(MqttClient $client, Repository $repository)
+    {
+        $startedAt = microtime(true);
+        $timeout = $this->timeout();
+
+        while ($repository->countPendingOutgoingMessages() > 0) {
+            if (microtime(true) - $startedAt >= $timeout) {
+                throw new DataTransferException(
+                    DataTransferException::EXCEPTION_RX_DATA,
+                    sprintf('the broker did not acknowledge the message within %s seconds.', $timeout)
+                );
+            }
+
+            $client->loopOnce($startedAt, true, 1000);
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $filters
+     * @return void
+     */
+    protected function subscribeAll(MqttClient $client, array $filters, int $qos)
+    {
+        foreach ($filters as $filter) {
+            $client->subscribe($filter, null, $qos);
+        }
+    }
+
+    /**
+     * Fire the event, then the callback. A failing listener doesn't stop the
+     * callback, and neither stops the subscribe loop.
+     *
+     * @param  string  $topic
+     * @param  string  $message
+     * @return void
+     */
+    protected function deliver(callable $proc, $topic, $message)
+    {
+        try {
+            $this->dispatchReceived($topic, $message);
+        } catch (\Throwable $e) {
+            $this->logger()->error('An MqttMessageReceived listener failed for a message on [{topic}]: {error}', [
+                'topic' => $topic,
+                'error' => $e->getMessage(),
+                'exception' => $e,
+            ]);
+        }
+
+        try {
+            call_user_func($proc, $topic, $message);
+        } catch (\Throwable $e) {
+            $this->logger()->error('The subscribe callback failed for a message on [{topic}]: {error}', [
+                'topic' => $topic,
+                'error' => $e->getMessage(),
+                'exception' => $e,
+            ]);
+        }
+    }
+
+    /**
+     * @param  bool  $reconnect  enable automatic reconnects
      * @return ConnectionSettings
      */
-    protected function settings()
+    protected function settings($reconnect = false)
     {
         $settings = (new ConnectionSettings())
             ->setUsername($this->nullable($this->config['username'] ?? null))
             ->setPassword($this->nullable($this->config['password'] ?? null))
-            ->setConnectTimeout((int) ($this->config['timeout'] ?? 10))
+            ->setConnectTimeout((int) ceil($this->timeout()))
             ->setKeepAliveInterval((int) ($this->config['keepalive'] ?? 10));
 
         $tls = (array) ($this->config['tls'] ?? []);
@@ -233,18 +347,18 @@ class Mqtt
         $will = (array) ($this->config['last_will'] ?? []);
 
         if (! empty($will['topic'])) {
-            $settings = $settings->setLastWillTopic($will['topic'])
-                ->setLastWillMessage((string) ($will['message'] ?? ''))
-                ->setLastWillQualityOfService((int) ($will['qos'] ?? 0))
+            $settings = $settings->setLastWillTopic(Arguments::topic($will['topic']))
+                ->setLastWillMessage(Arguments::payload($will['message'] ?? ''))
+                ->setLastWillQualityOfService(Arguments::qos($will['qos'] ?? 0))
                 ->setRetainLastWill((bool) ($will['retain'] ?? false));
         }
 
-        $reconnect = (array) ($this->config['reconnect'] ?? []);
+        if ($reconnect) {
+            $options = (array) ($this->config['reconnect'] ?? []);
 
-        if (! empty($reconnect['enabled'])) {
             $settings = $settings->setReconnectAutomatically(true)
-                ->setMaxReconnectAttempts((int) ($reconnect['max_attempts'] ?? 3))
-                ->setDelayBetweenReconnectAttempts((int) ($reconnect['delay'] ?? 1000));
+                ->setMaxReconnectAttempts((int) ($options['max_attempts'] ?? 3))
+                ->setDelayBetweenReconnectAttempts((int) ($options['delay'] ?? 1000));
         }
 
         return $settings;
@@ -255,28 +369,40 @@ class Mqtt
      */
     protected function protocol()
     {
-        return ($this->config['protocol'] ?? MqttClient::MQTT_3_1_1) === MqttClient::MQTT_3_1
-            ? MqttClient::MQTT_3_1
-            : MqttClient::MQTT_3_1_1;
+        $protocol = (string) ($this->config['protocol'] ?? MqttClient::MQTT_3_1_1);
+
+        if (! in_array($protocol, [MqttClient::MQTT_3_1_1, MqttClient::MQTT_3_1], true)) {
+            throw new InvalidArgumentException("Unsupported MQTT protocol [{$protocol}]; use '3.1.1' or '3.1'.");
+        }
+
+        return $protocol;
     }
 
     /**
-     * Pass the framework logger to the client only in debug mode; the client
-     * logs every packet at debug level.
+     * Connect / read / acknowledgement timeout in seconds.
      *
-     * @return LoggerInterface|null
+     * @return float
+     */
+    protected function timeout()
+    {
+        $timeout = (float) ($this->config['timeout'] ?? 10);
+
+        return $timeout > 0 ? $timeout : 10.0;
+    }
+
+    /**
+     * The logger handed to php-mqtt/client: warnings and errors always, every
+     * packet when `debug` is on, with the password masked.
+     *
+     * @return Logger
      */
     protected function logger()
     {
-        if (! ($this->config['debug'] ?? false)) {
-            return null;
-        }
-
-        if (function_exists('app') && app()->bound('log')) {
-            return app('log');
-        }
-
-        return null;
+        return $this->logger ??= new Logger(
+            $this->connection,
+            (bool) ($this->config['debug'] ?? false),
+            [$this->nullable($this->config['password'] ?? null), $this->nullable($this->config['tls']['passphrase'] ?? null)]
+        );
     }
 
     /**
@@ -284,15 +410,7 @@ class Mqtt
      */
     protected function report(MqttClientException $e)
     {
-        $message = 'MQTT ['.$this->connection.'] '.$e->getMessage();
-
-        if (function_exists('app') && app()->bound('log')) {
-            app('log')->error($message);
-
-            return;
-        }
-
-        error_log($message);
+        $this->logger()->error($e->getMessage());
     }
 
     /**
@@ -311,34 +429,40 @@ class Mqtt
     }
 
     /**
-     * @param  int|null  $qos
+     * @param  int|string|null  $qos
      * @return int
      */
     protected function resolveQos($qos)
     {
-        $qos = (int) ($qos ?? ($this->config['qos'] ?? 0));
-
-        return max(0, min(2, $qos));
+        return Arguments::qos($qos ?? ($this->config['qos'] ?? 0));
     }
 
     /**
-     * @param  int|bool|null  $retain
+     * null means "use the connection's `retain` setting"; anything else is
+     * taken as the flag itself, so an explicit 0 / false turns retain off.
+     *
+     * @param  int|bool|string|null  $retain
      * @return bool
      */
     protected function resolveRetain($retain)
     {
-        return (bool) (empty($retain) ? ($this->config['retain'] ?? 0) : $retain);
+        return (bool) ($retain ?? ($this->config['retain'] ?? false));
     }
 
     /**
-     * Generate a reasonably unique client id when none is supplied.
+     * Generate a random client id when none is supplied (20 characters, within
+     * MQTT 3.1's 23-character limit).
      *
      * @param  string|int|null  $clientId
      * @return string
      */
     protected function resolveClientId($clientId)
     {
-        return empty($clientId) ? uniqid('lmq_') : (string) $clientId;
+        if ($clientId === null || $clientId === '') {
+            return 'lmq_'.bin2hex(random_bytes(8));
+        }
+
+        return (string) $clientId;
     }
 
     /**
@@ -350,6 +474,29 @@ class Mqtt
     protected function nullable($value)
     {
         return ($value === null || $value === '') ? null : (string) $value;
+    }
+
+    /**
+     * The manager, if the app has swapped in Mqtt::fake(). Lets code that
+     * builds this class directly (helpers, `new Mqtt()`) honour the fake.
+     *
+     * @return MqttManager|null
+     */
+    protected function fakeManager()
+    {
+        if (! function_exists('app')) {
+            return null;
+        }
+
+        $app = app();
+
+        if (! $app->resolved(MqttManager::class)) {
+            return null;
+        }
+
+        $manager = $app->make(MqttManager::class);
+
+        return $manager->isFaking() ? $manager : null;
     }
 
     /**

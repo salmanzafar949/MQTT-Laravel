@@ -76,4 +76,21 @@ class DummyNotifiable
     {
         return $channel === 'mqtt' ? 'devices/42' : null;
     }
+
+    public function test_the_message_qos_is_passed_through()
+    {
+        $fake = \Salman\Mqtt\Facades\Mqtt::fake();
+        $channel = new \Salman\Mqtt\Notifications\MqttChannel($this->app->make(\Salman\Mqtt\MqttManager::class));
+
+        $notification = new class () extends \Illuminate\Notifications\Notification {
+            public function toMqtt($notifiable)
+            {
+                return \Salman\Mqtt\Notifications\MqttMessage::create('alarm')->topic('alerts')->qos(2);
+            }
+        };
+
+        $channel->send(new \stdClass(), $notification);
+
+        $this->assertSame(2, $fake->published()[0]['qos']);
+    }
 }

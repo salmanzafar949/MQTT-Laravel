@@ -14,7 +14,6 @@ use Salman\Mqtt\Testing\MqttFake;
  *
  * @method bool ConnectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null, int|null $qos = null)
  * @method bool ConnectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null, int|null $qos = null)
- * @method void interrupt()
  */
 class MqttManager
 {
@@ -43,6 +42,28 @@ class MqttManager
         }
 
         return $this->connections[$name];
+    }
+
+    /**
+     * Whether Mqtt::fake() has been called.
+     *
+     * @return bool
+     */
+    public function isFaking()
+    {
+        return $this->fake !== null;
+    }
+
+    /**
+     * Stop every running subscribe loop, on any connection.
+     *
+     * @return void
+     */
+    public function interrupt()
+    {
+        foreach ($this->connections as $connection) {
+            $connection->interrupt();
+        }
     }
 
     /**
@@ -98,9 +119,10 @@ class MqttManager
     /**
      * Resolve the configuration array for a named connection.
      *
-     * The default connection maps to the flat top-level `mqtt.*` config (kept
-     * for backwards compatibility). Additional connections live under
-     * `mqtt.connections.<name>` and inherit any top-level defaults.
+     * Connections live under `mqtt.connections.<name>` and inherit the flat
+     * top-level `mqtt.*` settings, nested arrays (tls, last_will, reconnect)
+     * included. "default" (or whatever `mqtt.default` names, if it isn't
+     * defined under `connections`) is the flat config itself.
      *
      * @param  string  $name
      * @return array<string, mixed>
@@ -111,15 +133,15 @@ class MqttManager
         $connections = $base['connections'] ?? [];
         unset($base['connections'], $base['default']);
 
-        if ($name === $this->getDefaultConnection()) {
+        if (isset($connections[$name]) && is_array($connections[$name])) {
+            return array_replace_recursive($base, $connections[$name]);
+        }
+
+        if ($name === 'default' || $name === $this->getDefaultConnection()) {
             return $base;
         }
 
-        if (! isset($connections[$name]) || ! is_array($connections[$name])) {
-            throw new InvalidArgumentException("MQTT connection [{$name}] is not configured.");
-        }
-
-        return array_merge($base, $connections[$name]);
+        throw new InvalidArgumentException("MQTT connection [{$name}] is not configured.");
     }
 
     /**

@@ -51,7 +51,7 @@ class MqttChannel
 
         return $this->manager
             ->connection($message->connection)
-            ->ConnectAndPublish($topic, $message->payload, $message->clientId, $message->retain);
+            ->ConnectAndPublish($topic, $message->payload, $message->clientId, $message->retain, $message->qos);
     }
 
     /**

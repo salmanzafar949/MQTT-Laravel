@@ -22,12 +22,44 @@ v3.x remains available, unchanged, for PHP 7.2+.
 - **`Mqtt::interrupt()`** to stop a subscribe loop and disconnect cleanly;
   `mqtt:subscribe` now uses it on SIGINT/SIGTERM instead of `exit()`.
 - `tls.enabled` to use TLS with a public-CA broker without a CA file.
-- Real-broker integration tests for QoS 1/2 delivery and Last Will.
+- Persistent sessions work: with `clean_session` off, messages published while
+  a subscriber was offline are delivered when it reconnects.
+- Subscribers subscribe again after an automatic reconnect.
+- `MqttMessage::qos()` for notifications, `--no-retain` on `mqtt:publish`,
+  `Mqtt::assertSubscribed()` on the fake, `MqttManager::interrupt()` for every
+  connection.
+- Real-broker integration tests for QoS 1/2 delivery, Last Will and
+  persistent sessions.
 
 ### Changed
 - **Requires PHP 8.0+.**
-- `debug` now logs every MQTT packet through the Laravel logger; errors are
-  still logged when it's off.
+- **`timeout` is enforced everywhere**: connecting to a server that accepts TCP
+  but never answers, and waiting for a QoS 1/2 acknowledgement, now give up
+  after `timeout` seconds instead of hanging.
+- QoS 1/2 publishes no longer add 100 – 200 ms of polling delay.
+- `debug` now logs every MQTT packet through the Laravel logger. Warnings and
+  errors (including exceptions thrown by subscribe callbacks or event
+  listeners) are logged even when it's off, and the password is masked.
+- Invalid topics (empty or containing `+`/`#`), non-string payloads (e.g.
+  arrays), an empty topic list, a QoS other than 0 – 2 and an unknown
+  `protocol` throw `InvalidArgumentException` instead of being sent, clamped or
+  ignored. The Artisan commands exit with code 1 for them.
+- `$retain = 0` / `false` now turns retain off; only `null` falls back to the
+  configured default.
+- A queued `PublishMqttMessage` job throws when the publish fails, so the queue
+  retries it and records it in `failed_jobs`. Binary payloads can be queued.
+- An exception thrown by a subscribe callback is logged and no longer stops
+  the loop. A failing `MqttMessageReceived` listener no longer stops the
+  callback.
+- `Mqtt::fake()` also catches the helper functions and `new Mqtt()`, validates
+  input like the real client and shows the recorded payloads when an
+  assertion fails.
+- Named connections deep-merge nested settings (`tls`, `last_will`,
+  `reconnect`) from the top-level config, and `MQTT_CONNECTION` can name one
+  of them. A config file published by an older version gets new nested keys
+  from the package defaults.
+- Generated client ids are random (`lmq_` + 16 hex characters).
+- Automatic reconnects apply to subscribe connections only.
 - CI now tests Laravel 12 and 13 on PHP 8.2 – 8.5. Laravel 9 – 11 are no longer
   tested: they're end-of-life with unpatched security advisories, and Composer
   refuses to install them.

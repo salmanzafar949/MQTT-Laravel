@@ -2,9 +2,14 @@
 
 namespace Salman\Mqtt\Tests;
 
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\MqttClient;
 use ReflectionMethod;
+use RuntimeException;
+use Salman\Mqtt\Events\MqttMessageReceived;
 use Salman\Mqtt\Exceptions\MqttConnectionException;
 use Salman\Mqtt\MqttClass\Mqtt;
 
@@ -18,9 +23,9 @@ class MqttTest extends TestCase
         return $ref->invokeArgs($mqtt, $args);
     }
 
-    private function settings(array $config): ConnectionSettings
+    private function settings(array $config, bool $reconnect = false): ConnectionSettings
     {
-        return $this->invoke(new Mqtt($config), 'settings');
+        return $this->invoke(new Mqtt($config), 'settings', [$reconnect]);
     }
 
     public function test_empty_credentials_are_sent_as_null()
@@ -104,13 +109,18 @@ class MqttTest extends TestCase
         $this->assertFalse($this->settings(['last_will' => ['topic' => null]])->hasLastWill());
     }
 
+    public function test_reconnects_are_only_used_for_subscribe_connections()
+    {
+        $this->assertFalse($this->settings(['reconnect' => ['enabled' => true]])->shouldReconnectAutomatically());
+    }
+
     public function test_reconnect_settings_are_mapped()
     {
         $settings = $this->settings(['reconnect' => [
             'enabled' => true,
             'max_attempts' => 5,
             'delay' => 250,
-        ]]);
+        ]], true);
 
         $this->assertTrue($settings->shouldReconnectAutomatically());
         $this->assertSame(5, $settings->getMaxReconnectAttempts());
@@ -121,32 +131,122 @@ class MqttTest extends TestCase
     {
         $this->assertSame(MqttClient::MQTT_3_1_1, $this->invoke(new Mqtt([]), 'protocol'));
         $this->assertSame(MqttClient::MQTT_3_1, $this->invoke(new Mqtt(['protocol' => '3.1']), 'protocol'));
-        $this->assertSame(MqttClient::MQTT_3_1_1, $this->invoke(new Mqtt(['protocol' => 'bogus']), 'protocol'));
     }
 
-    public function test_qos_falls_back_to_config_and_is_clamped()
+    public function test_an_unknown_protocol_is_rejected()
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new Mqtt(['protocol' => '5.0']))->ConnectAndPublish('t', 'm');
+    }
+
+    public function test_qos_falls_back_to_config()
     {
         $mqtt = new Mqtt(['qos' => 1]);
 
         $this->assertSame(1, $this->invoke($mqtt, 'resolveQos', [null]));
         $this->assertSame(2, $this->invoke($mqtt, 'resolveQos', [2]));
-        $this->assertSame(2, $this->invoke($mqtt, 'resolveQos', [9]));
-        $this->assertSame(0, $this->invoke($mqtt, 'resolveQos', [-1]));
+        $this->assertSame(0, $this->invoke($mqtt, 'resolveQos', ['0']));
     }
 
-    public function test_retain_falls_back_to_config()
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidQos')]
+    public function test_an_invalid_qos_is_rejected_rather_than_clamped($qos)
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new Mqtt([]))->ConnectAndPublish('t', 'm', null, null, $qos);
+    }
+
+    public static function invalidQos(): array
+    {
+        return [[3], [-1], ['high'], [1.5], [true]];
+    }
+
+    public function test_an_invalid_configured_qos_is_rejected()
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new Mqtt(['qos' => 9]))->ConnectAndPublish('t', 'm');
+    }
+
+    public function test_retain_null_uses_the_config_and_an_explicit_value_wins()
     {
         $this->assertTrue($this->invoke(new Mqtt(['retain' => 1]), 'resolveRetain', [null]));
         $this->assertFalse($this->invoke(new Mqtt(['retain' => 0]), 'resolveRetain', [null]));
         $this->assertTrue($this->invoke(new Mqtt(['retain' => 0]), 'resolveRetain', [1]));
+        $this->assertFalse($this->invoke(new Mqtt(['retain' => 1]), 'resolveRetain', [0]));
+        $this->assertFalse($this->invoke(new Mqtt(['retain' => 1]), 'resolveRetain', [false]));
     }
 
-    public function test_a_client_id_is_generated_when_missing()
+    public function test_generated_client_ids_are_random_and_fit_mqtt_3_1()
     {
-        $id = $this->invoke(new Mqtt([]), 'resolveClientId', [null]);
+        $ids = [];
+        for ($i = 0; $i < 200; $i++) {
+            $ids[] = $this->invoke(new Mqtt([]), 'resolveClientId', [null]);
+        }
 
-        $this->assertStringStartsWith('lmq_', $id);
+        $this->assertCount(200, array_unique($ids));
+        foreach ($ids as $id) {
+            $this->assertMatchesRegularExpression('/^lmq_[0-9a-f]{16}$/', $id);
+            $this->assertLessThanOrEqual(23, strlen($id));
+        }
+
         $this->assertSame('custom', $this->invoke(new Mqtt([]), 'resolveClientId', ['custom']));
+        $this->assertSame('0', $this->invoke(new Mqtt([]), 'resolveClientId', ['0']));
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidTopics')]
+    public function test_an_invalid_publish_topic_is_rejected($topic)
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new Mqtt([]))->ConnectAndPublish($topic, 'm');
+    }
+
+    public static function invalidTopics(): array
+    {
+        return [[''], ['sensors/+/temp'], ['sensors/#'], [null], [['a']]];
+    }
+
+    public function test_an_array_payload_is_rejected()
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('json_encode');
+
+        (new Mqtt([]))->ConnectAndPublish('t', ['temp' => 21]);
+    }
+
+    public function test_subscribing_to_no_topics_is_rejected()
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new Mqtt([]))->ConnectAndSubscribe([], function () {
+        });
+    }
+
+    public function test_a_throwing_listener_does_not_stop_the_callback()
+    {
+        Event::listen(MqttMessageReceived::class, function () {
+            throw new RuntimeException('listener broke');
+        });
+
+        $received = [];
+        $this->invoke(new Mqtt([]), 'deliver', [function ($topic, $message) use (&$received) {
+            $received[] = [$topic, $message];
+        }, 'a/b', 'hello']);
+
+        $this->assertSame([['a/b', 'hello']], $received);
+    }
+
+    public function test_a_throwing_callback_is_logged_not_thrown()
+    {
+        Log::shouldReceive('log')->once()->withArgs(function ($level, $message) {
+            return $level === 'error' && str_contains($message, 'callback broke') && str_contains($message, 'a/b');
+        });
+
+        $this->invoke(new Mqtt([]), 'deliver', [function () {
+            throw new RuntimeException('callback broke');
+        }, 'a/b', 'hello']);
     }
 
     public function test_a_failed_connection_returns_false_by_default()
@@ -164,6 +264,63 @@ class MqttTest extends TestCase
         $this->expectException(MqttConnectionException::class);
 
         $mqtt->ConnectAndPublish('t', 'm');
+    }
+
+    public function test_failures_are_logged_even_with_debug_off()
+    {
+        Log::shouldReceive('log')->atLeast()->once()->withArgs(function ($level, $message) {
+            return in_array($level, ['error', 'warning'], true) && str_starts_with($message, 'MQTT [default]');
+        });
+
+        (new Mqtt(['host' => '127.0.0.1', 'port' => 1, 'timeout' => 1, 'debug' => false]))->ConnectAndPublish('t', 'm');
+    }
+
+    public function test_the_connect_timeout_applies_when_the_broker_never_answers()
+    {
+        // A listening socket that is never accept()ed: TCP connects, but no
+        // CONNACK ever arrives.
+        $server = stream_socket_server('tcp://127.0.0.1:0');
+        $port = (int) substr(strrchr(stream_socket_get_name($server, false), ':'), 1);
+
+        $started = microtime(true);
+        $result = (new Mqtt(['host' => '127.0.0.1', 'port' => $port, 'timeout' => 1]))->ConnectAndPublish('t', 'm');
+        $elapsed = microtime(true) - $started;
+
+        fclose($server);
+
+        $this->assertFalse($result);
+        $this->assertLessThan(3, $elapsed, 'The publish should give up after the 1s timeout.');
+    }
+
+    public function test_a_qos_1_publish_gives_up_when_no_puback_arrives()
+    {
+        if (! function_exists('pcntl_fork')) {
+            $this->markTestSkipped('Requires pcntl.');
+        }
+
+        // A server that sends CONNACK and then ignores everything.
+        $server = stream_socket_server('tcp://127.0.0.1:0');
+        $port = (int) substr(strrchr(stream_socket_get_name($server, false), ':'), 1);
+
+        $pid = pcntl_fork();
+        if ($pid === 0) {
+            $conn = stream_socket_accept($server, 5);
+            fread($conn, 1024);
+            fwrite($conn, "\x20\x02\x00\x00");
+            sleep(5);
+            exit(0);
+        }
+
+        $started = microtime(true);
+        $result = (new Mqtt(['host' => '127.0.0.1', 'port' => $port, 'timeout' => 1]))->ConnectAndPublish('t', 'm', null, null, 1);
+        $elapsed = microtime(true) - $started;
+
+        posix_kill($pid, SIGKILL);
+        pcntl_waitpid($pid, $status);
+        fclose($server);
+
+        $this->assertFalse($result);
+        $this->assertLessThan(3, $elapsed, 'The publish should give up after the 1s timeout.');
     }
 
     public function test_interrupt_without_an_active_subscription_is_a_no_op()

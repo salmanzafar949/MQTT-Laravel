@@ -32,7 +32,7 @@ class BrokerQosAndLastWillTest extends TestCase
      * Fork a subscriber that appends each message to $file and exits after
      * $expected messages (or after a safety timeout).
      */
-    private function forkSubscriber(string $topic, string $file, int $expected, int $qos): int
+    private function forkSubscriber(string $topic, string $file, int $expected, int $qos, array $overrides = [], ?string $clientId = null): int
     {
         $pid = pcntl_fork();
 
@@ -44,13 +44,13 @@ class BrokerQosAndLastWillTest extends TestCase
             pcntl_alarm(15);
 
             $received = 0;
-            (new Mqtt($this->broker()))->ConnectAndSubscribe($topic, function ($topic, $message) use ($file, $expected, &$received) {
+            (new Mqtt($this->broker($overrides)))->ConnectAndSubscribe($topic, function ($topic, $message) use ($file, $expected, &$received) {
                 file_put_contents($file, $message.PHP_EOL, FILE_APPEND);
 
                 if (++$received >= $expected) {
                     exit(0);
                 }
-            }, null, $qos);
+            }, $clientId, $qos);
 
             exit(0);
         }
@@ -109,5 +109,52 @@ class BrokerQosAndLastWillTest extends TestCase
         @unlink($file);
 
         $this->assertSame('device-offline', $received);
+    }
+
+    public function test_a_persistent_session_receives_messages_sent_while_offline()
+    {
+        $topic = 'laravel-mqtt/persist/'.uniqid();
+        $clientId = 'lmq-persist-'.substr(uniqid(), -8);
+        $session = ['clean_session' => false];
+        $file = tempnam(sys_get_temp_dir(), 'mqtt-persist-');
+
+        // 1. Subscribe once with a persistent session, then disconnect cleanly.
+        $first = pcntl_fork();
+        if ($first === 0) {
+            $mqtt = new Mqtt($this->broker($session));
+            pcntl_async_signals(true);
+            pcntl_signal(SIGALRM, function () use ($mqtt) {
+                $mqtt->interrupt();
+            });
+            pcntl_alarm(1);
+            $mqtt->ConnectAndSubscribe($topic, function () {
+            }, $clientId, 1);
+            exit(0);
+        }
+        pcntl_waitpid($first, $status);
+
+        // 2. Publish while the subscriber is offline; the broker queues it.
+        $this->assertTrue((new Mqtt($this->broker()))->ConnectAndPublish($topic, 'while-offline', null, null, 1));
+
+        // 3. Reconnect with the same client id: the queued message arrives.
+        $second = $this->forkSubscriber($topic, $file, 1, 1, $session, $clientId);
+        pcntl_waitpid($second, $status);
+
+        $received = trim((string) file_get_contents($file));
+        @unlink($file);
+
+        $this->assertSame('while-offline', $received);
+    }
+
+    public function test_qos_publishes_complete_without_polling_delays()
+    {
+        $publisher = new Mqtt($this->broker());
+        $started = microtime(true);
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->assertTrue($publisher->ConnectAndPublish('laravel-mqtt/speed/'.uniqid(), 'm', null, null, $i % 2 + 1));
+        }
+
+        $this->assertLessThan(2.0, microtime(true) - $started, '20 QoS 1/2 publishes should take well under 2 seconds on localhost.');
     }
 }
