@@ -14,23 +14,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # orchestra/testbench pulls in the matching (patched) Laravel release:
-          #   testbench 7 -> Laravel 9, 8 -> 10, 9 -> 11, 10 -> 12
-          - php: '8.0'
-            testbench: '^7.0'
-            laravel: '9.x'
-          - php: '8.1'
-            testbench: '^8.0'
-            laravel: '10.x'
+          # orchestra/testbench pulls in the matching Laravel release:
+          #   testbench 10 -> Laravel 12, 11 -> Laravel 13.
+          # Laravel 9-11 are end-of-life with unpatched security advisories, and
+          # Composer now refuses to install them, so only supported releases run.
           - php: '8.2'
-            testbench: '^9.0'
-            laravel: '11.x'
+            testbench: '^10.0'
+            laravel: '12.x'
           - php: '8.3'
             testbench: '^10.0'
             laravel: '12.x'
           - php: '8.4'
             testbench: '^10.0'
             laravel: '12.x'
+          - php: '8.3'
+            testbench: '^11.0'
+            laravel: '13.x'
+          - php: '8.4'
+            testbench: '^11.0'
+            laravel: '13.x'
+          - php: '8.5'
+            testbench: '^11.0'
+            laravel: '13.x'
 
     name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }}
 
@@ -64,7 +69,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: openssl, mbstring, pcntl, sockets
+          extensions: openssl, mbstring, pcntl, posix, sockets
           coverage: none
 
       - name: Start Mosquitto broker

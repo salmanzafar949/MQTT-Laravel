@@ -57,4 +57,22 @@ class ServiceProviderTest extends TestCase
         $this->assertTrue(function_exists('connectToPublish'));
         $this->assertTrue(function_exists('connectToSubscribe'));
     }
+
+    public function test_a_published_v3_config_gets_the_new_nested_defaults()
+    {
+        // Simulate an app that published the v3 config: a tls array without
+        // `enabled` and no last_will / reconnect sections.
+        $this->app['config']->set('mqtt', [
+            'host' => 'old.example.com',
+            'tls' => ['verify_peer' => false],
+        ]);
+
+        (new \Salman\Mqtt\MqttServiceProvider($this->app))->register();
+
+        $this->assertSame('old.example.com', config('mqtt.host'));
+        $this->assertFalse(config('mqtt.tls.verify_peer'));
+        $this->assertFalse(config('mqtt.tls.enabled'));
+        $this->assertSame(3, config('mqtt.reconnect.max_attempts'));
+        $this->assertSame('3.1.1', config('mqtt.protocol'));
+    }
 }

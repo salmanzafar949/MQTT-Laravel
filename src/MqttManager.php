@@ -2,6 +2,7 @@
 
 namespace Salman\Mqtt;
 
+use BadMethodCallException;
 use InvalidArgumentException;
 use Salman\Mqtt\Jobs\PublishMqttMessage;
 use Salman\Mqtt\MqttClass\Mqtt;
@@ -12,8 +13,8 @@ use Salman\Mqtt\Testing\MqttFake;
  * connection, so that `Mqtt::ConnectAndPublish(...)` keeps working while
  * `Mqtt::connection('sensors')->...` targets an additional broker.
  *
- * @method bool ConnectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null)
- * @method bool ConnectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null)
+ * @method bool ConnectAndPublish(string $topic, string $msg, string|int|null $client_id = null, int|null $retain = null, int|null $qos = null)
+ * @method bool ConnectAndSubscribe(string|array $topic, callable $proc, string|int|null $client_id = null, int|null $qos = null)
  */
 class MqttManager
 {
@@ -32,6 +33,11 @@ class MqttManager
     public function connection($name = null)
     {
         if ($this->fake !== null) {
+            if ($name) {
+                // Fail on a typo in tests the same way production would.
+                $this->configFor($name);
+            }
+
             return $this->fake->connection($name);
         }
 
@@ -42,6 +48,27 @@ class MqttManager
         }
 
         return $this->connections[$name];
+    }
+
+    /**
+     * Whether Mqtt::fake() has been called.
+     *
+     * @return bool
+     */
+    public function isFaking()
+    {
+        return $this->fake !== null;
+    }
+
+    /**
+     * Stop every running subscribe loop in this process, on any connection
+     * (including ones created with `new Mqtt()` or the helpers).
+     *
+     * @return void
+     */
+    public function interrupt()
+    {
+        Mqtt::interruptAll();
     }
 
     /**
@@ -63,15 +90,16 @@ class MqttManager
      * @param  string|int|null  $clientId
      * @param  int|null  $retain
      * @param  string|null  $connection  the MQTT connection name
+     * @param  int|null  $qos
      * @return mixed  the queued job's PendingDispatch (or the fake's record)
      */
-    public function queue($topic, $message, $clientId = null, $retain = null, $connection = null)
+    public function queue($topic, $message, $clientId = null, $retain = null, $connection = null, $qos = null)
     {
         if ($this->fake !== null) {
-            return $this->fake->queue($topic, $message, $clientId, $retain, $connection);
+            return $this->fake->queue($topic, $message, $clientId, $retain, $connection, $qos);
         }
 
-        $job = new PublishMqttMessage($topic, $message, $clientId, $retain, $connection);
+        $job = new PublishMqttMessage($topic, $message, $clientId, $retain, $connection, $qos);
 
         if (function_exists('config')) {
             if ($queueName = config('mqtt.queue.name')) {
@@ -96,9 +124,10 @@ class MqttManager
     /**
      * Resolve the configuration array for a named connection.
      *
-     * The default connection maps to the flat top-level `mqtt.*` config (kept
-     * for backwards compatibility). Additional connections live under
-     * `mqtt.connections.<name>` and inherit any top-level defaults.
+     * Connections live under `mqtt.connections.<name>` and inherit the flat
+     * top-level `mqtt.*` settings, nested arrays (tls, last_will, reconnect)
+     * included. "default" is the flat config itself; `mqtt.default` must be
+     * "default" or name a defined connection.
      *
      * @param  string  $name
      * @return array<string, mixed>
@@ -109,15 +138,17 @@ class MqttManager
         $connections = $base['connections'] ?? [];
         unset($base['connections'], $base['default']);
 
-        if ($name === $this->getDefaultConnection()) {
+        if (isset($connections[$name]) && is_array($connections[$name])) {
+            return array_replace_recursive($base, $connections[$name]);
+        }
+
+        if ($name === 'default') {
             return $base;
         }
 
-        if (! isset($connections[$name]) || ! is_array($connections[$name])) {
-            throw new InvalidArgumentException("MQTT connection [{$name}] is not configured.");
-        }
+        $hint = $name === $this->getDefaultConnection() ? ' Check MQTT_CONNECTION (mqtt.default).' : '';
 
-        return array_merge($base, $connections[$name]);
+        throw new InvalidArgumentException("MQTT connection [{$name}] is not configured.{$hint}");
     }
 
     /**
@@ -129,6 +160,10 @@ class MqttManager
      */
     public function __call($method, $parameters)
     {
+        if ($this->fake === null && strncmp($method, 'assert', 6) === 0) {
+            throw new BadMethodCallException("Call Mqtt::fake() before Mqtt::{$method}().");
+        }
+
         return $this->connection()->{$method}(...$parameters);
     }
 }

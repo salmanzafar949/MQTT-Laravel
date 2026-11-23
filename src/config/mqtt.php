@@ -12,18 +12,54 @@ return [
     'password'  => env('MQTT_PASSWORD', ''),
     'username'  => env('MQTT_USERNAME', ''),
     'port'      => env('MQTT_PORT', '1883'),
-    'timeout'   => (int) env('MQTT_TIMEOUT', 10),
+    'timeout'   => (float) env('MQTT_TIMEOUT', 10), // Seconds to wait for the broker (connect, acknowledgements)
 
     // Seconds between keep-alive pings sent to the broker.
     'keepalive' => (int) env('MQTT_KEEPALIVE', 10),
 
-    'debug'     => (bool) env('MQTT_DEBUG', false), // Optional Parameter to enable debugging set it to True
-    'qos'       => env('MQTT_QOS', 0), // set quality of service here
-    'retain'    => env('MQTT_RETAIN', 0), // it should be 0 or 1 Whether the message should be retained.- Retain Flag
+    // MQTT protocol version: '3.1.1' (default) or '3.1'.
+    'protocol'  => env('MQTT_PROTOCOL', '3.1.1'),
+
+    'debug'     => (bool) env('MQTT_DEBUG', false), // Log every MQTT packet through the Laravel logger
+    'qos'       => (int) env('MQTT_QOS', 0), // Default quality of service: 0, 1 or 2
+    'retain'    => (int) env('MQTT_RETAIN', 0), // Default retain flag: 0 or 1
+
+    // Start each connection with a clean session. Forced off when automatic
+    // reconnects are enabled (php-mqtt/client does not allow both together).
+    'clean_session' => (bool) env('MQTT_CLEAN_SESSION', true),
 
     // When true, connection failures throw Salman\Mqtt\Exceptions\MqttConnectionException
     // instead of returning false. Defaults to false for backwards compatibility.
     'exceptions' => (bool) env('MQTT_EXCEPTIONS', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Last Will and Testament
+    |--------------------------------------------------------------------------
+    | If a topic is set, the broker publishes this message on the client's
+    | behalf when the connection drops without a clean disconnect.
+    */
+
+    'last_will' => [
+        'topic'   => env('MQTT_LAST_WILL_TOPIC', null),
+        'message' => env('MQTT_LAST_WILL_MESSAGE', ''),
+        'qos'     => (int) env('MQTT_LAST_WILL_QOS', 0),
+        'retain'  => (bool) env('MQTT_LAST_WILL_RETAIN', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Automatic reconnects
+    |--------------------------------------------------------------------------
+    | Reconnect when the connection drops mid-loop (useful for long-running
+    | subscribers). Delay is in milliseconds.
+    */
+
+    'reconnect' => [
+        'enabled'      => (bool) env('MQTT_RECONNECT', false),
+        'max_attempts' => (int) env('MQTT_RECONNECT_MAX_ATTEMPTS', 3),
+        'delay'        => (int) env('MQTT_RECONNECT_DELAY', 1000),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -43,8 +79,8 @@ return [
     |--------------------------------------------------------------------------
     | TLS / SSL
     |--------------------------------------------------------------------------
-    | Provide a CA file to connect over tls://. The options below are forwarded
-    | to the SSL stream context. Keep the verify_* options enabled in production.
+    | TLS is used when a CA file is set or `tls.enabled` is true. Keep the
+    | verify_* options enabled in production.
     */
 
     'certfile'  => env('MQTT_CERT_FILE', ''),
@@ -52,10 +88,10 @@ return [
     'localpk'   => env('MQTT_LOCAL_PK', ''),
 
     'tls' => [
+        'enabled'           => (bool) env('MQTT_TLS', false),
         'verify_peer'       => (bool) env('MQTT_TLS_VERIFY_PEER', true),
         'verify_peer_name'  => (bool) env('MQTT_TLS_VERIFY_PEER_NAME', true),
         'allow_self_signed' => (bool) env('MQTT_TLS_ALLOW_SELF_SIGNED', false),
-        'ciphers'           => env('MQTT_TLS_CIPHERS', null),
         'passphrase'        => env('MQTT_TLS_PASSPHRASE', null),
     ],
 

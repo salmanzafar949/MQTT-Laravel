@@ -22,6 +22,9 @@ class MqttMessage
     /** @var string|null */
     public $connection = null;
 
+    /** @var int|null */
+    public $qos = null;
+
     /**
      * @param  string  $payload
      */
@@ -79,6 +82,17 @@ class MqttMessage
     public function clientId($clientId)
     {
         $this->clientId = $clientId;
+
+        return $this;
+    }
+
+    /**
+     * @param  int  $qos  0, 1 or 2
+     * @return $this
+     */
+    public function qos($qos)
+    {
+        $this->qos = $qos;
 
         return $this;
     }
